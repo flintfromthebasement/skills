@@ -1,0 +1,16 @@
+{
+  "name": "site-archive-skill",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reusable site archive crawler for Flint skills.",
+  "scripts": {
+    "crawl": "node scripts/crawl.mjs"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "fast-xml-parser": "^5.3.0",
+    "jsdom": "^26.1.0",
+    "turndown": "^7.2.0"
+  }
+}

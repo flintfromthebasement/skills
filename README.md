@@ -18,7 +18,7 @@ Your agent manages its own skills from there.
 **1. Clone the repo**
 
 ```bash
-git clone https://github.com/verygoodplugins/skills.git
+git clone https://github.com/flintfromthebasement/skills.git
 ```
 
 **2. Point your agent at the skills folder**
@@ -73,6 +73,15 @@ The lifecycle manager. It:
 - Auto-applies trivial changes (typos, wording)
 - Maintains per-skill `CHANGELOG.md` entries
 - Runs a weekly drift check (built-in job instructions)
+
+### site-archive
+
+A reusable skill for archiving websites into markdown. It:
+- prefers sitemap discovery and respects `robots.txt`
+- randomizes single-threaded crawl delays
+- supports incremental modes like `--skip-existing`, `--since-lastmod`, and `--only-posts`
+- uses browser-like headers and can fall back to `curl`
+- detects common bot-blocker pages and records them instead of archiving junk
 
 ---
 

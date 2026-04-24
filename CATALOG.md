@@ -21,7 +21,7 @@ Skills maintained in this repo and ready to import.
 
 | Skill | GitHub URL | Description |
 |-------|------------|-------------|
-| *(more coming)* | — | Submit a PR to add your skill |
+| `site-archive` | https://github.com/flintfromthebasement/skills/tree/main/site-archive | Archive a site or URL into markdown with robots.txt checks, randomized delays, incremental modes, curl fallback, and blocker detection |
 
 ---
 
