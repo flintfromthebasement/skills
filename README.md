@@ -23,6 +23,7 @@ This repo is a simple home for reusable agent skills that are useful outside any
 | Skill | Path | What it does |
 | --- | --- | --- |
 | `site-archive` | [`skills/site-archive`](./skills/site-archive/) | Archives a site or URL into markdown while respecting `robots.txt`, randomizing delays, supporting incremental crawls, and detecting blocker pages |
+| `vuln-scan` | [`skills/vuln-scan`](./skills/vuln-scan/) | Per-file CTF-style vulnerability scanner: loops source files through `claude -p`, writes `*.vuln.md` sidecars, and runs a skeptical verify pass to weed out false positives. Profiles for WordPress, Node, and Python. |
 
 See [CATALOG.md](./CATALOG.md) for the short index.
 
@@ -33,11 +34,16 @@ See [CATALOG.md](./CATALOG.md) for the short index.
 ├── README.md
 ├── CATALOG.md
 └── skills/
-    └── site-archive/
+    ├── site-archive/
+    │   ├── SKILL.md
+    │   ├── package.json
+    │   ├── package-lock.json
+    │   └── scripts/
+    └── vuln-scan/
         ├── SKILL.md
-        ├── package.json
-        ├── package-lock.json
         └── scripts/
+            ├── scan.sh
+            └── verify.sh
 ```
 
 ## Using a Skill
