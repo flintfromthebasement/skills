@@ -16,6 +16,14 @@ Default storage:
 
 Prefer the bundled crawler instead of writing one-off scraping code.
 
+## Setup
+
+```bash
+bash scripts/setup.sh
+```
+
+Idempotent installer. Verifies node/npm, runs `npm install`, smoke-checks the entry point, writes an install receipt at `~/.config/site-archive/.installed`. Re-runs are no-ops unless `--force`. See [CONVENTIONS.md](../../CONVENTIONS.md) for the repo-wide install pattern.
+
 ## Default workflow
 
 1. Point the crawler at a URL or domain.
