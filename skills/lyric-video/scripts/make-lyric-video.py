@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""make-lyric-video — combine audio + video + timestamped lyrics into a subtitled music video.
+"""make-lyric-video — combine audio + video + lyrics into a subtitled music video.
 
 Two-pass build:
   1. Composite (ffmpeg burns ASS into the picture, swaps in the supplied audio).
@@ -11,7 +11,13 @@ recoverable, instead of a corrupt MP4 with a missing moov atom.
 Usage:
   make-lyric-video --audio song.mp3 --video footage.mp4 --lyrics lyrics.lrc --out final.mp4
 
-Lyric formats: .lrc / .tsv / .json (auto-detected). See SKILL.md for the format details.
+Lyric formats (auto-detected):
+  - .lrc / .tsv / .json   timestamped, used as-is
+  - .txt or anything else plain text — runs whisper to align against the audio,
+                          using the lyric sheet as the canonical word source
+                          (whisper handles timing, the sheet handles spelling)
+
+Plain-text lyric alignment requires `whisper` on PATH (`pip install -U openai-whisper`).
 """
 
 import argparse
@@ -21,10 +27,17 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
+from difflib import SequenceMatcher
 from pathlib import Path
 
-GAP = 0.05  # seconds between subtitle ends and the next start, prevents flicker overlap
-MIN_LINE_LEN = 0.6  # minimum on-screen time for a line, even when crowded
+GAP = 0.05
+MIN_LINE_LEN = 0.6
+
+# Section headers in Suno-style lyric prompts that should be stripped from the visible output.
+# Match anything in [brackets] that's not a timestamp.
+SECTION_HEADER_RE = re.compile(r"^\s*\[[^\]]*\]\s*$")
+TIMESTAMP_LINE_RE = re.compile(r"\[\d+:\d+(?:\.\d+)?\]")
 
 ASS_HEADER_TMPL = """[Script Info]
 ScriptType: v4.00+
@@ -42,8 +55,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
 
+# --------------------------------------------------------------------------- #
+# Lyric parsing
+# --------------------------------------------------------------------------- #
+
 def parse_lrc(path):
-    """Parse LRC timestamps. Returns [(start, end, text)] with end inferred from next start."""
     pat = re.compile(r"\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)")
     raw = []
     with open(path, "r", encoding="utf-8") as f:
@@ -93,35 +109,214 @@ def parse_json(path):
         data = json.load(f)
     if not isinstance(data, list):
         sys.exit(f"{path}: expected a JSON array of {{start, end, text}} objects")
-    out = []
-    for d in data:
-        out.append((float(d["start"]), float(d["end"]), str(d["text"])))
-    return out
+    return [(float(d["start"]), float(d["end"]), str(d["text"])) for d in data]
 
 
-def parse_lyrics(path):
-    p = str(path).lower()
-    if p.endswith(".lrc"):
-        return parse_lrc(path)
-    if p.endswith(".tsv") or p.endswith(".tab"):
-        return parse_tsv(path)
-    if p.endswith(".json"):
-        return parse_json(path)
-
+def parse_plain(path):
+    """Read plain text lyrics, strip Suno-style section headers, return list of lines."""
+    lines = []
     with open(path, "r", encoding="utf-8") as f:
         for ln in f:
             s = ln.strip()
-            if not s:
+            if not s or s.startswith("#"):
                 continue
-            if s.startswith("[") and "]" in s and re.match(r"\[\d+:", s):
-                return parse_lrc(path)
-            if s.startswith("[") or s.startswith("{"):
-                return parse_json(path)
-            if "\t" in s:
-                return parse_tsv(path)
-            break
-    sys.exit(f"could not auto-detect lyric format for {path} — use a .lrc/.tsv/.json extension")
+            if SECTION_HEADER_RE.match(s):
+                continue  # [Verse 1], [Chorus], [Bridge], etc.
+            lines.append(s)
+    return lines
 
+
+def detect_format(path):
+    """Return one of: 'lrc', 'tsv', 'json', 'plain' based on extension + content sniff."""
+    ext = path.suffix.lower()
+    if ext == ".lrc":
+        return "lrc"
+    if ext in (".tsv", ".tab"):
+        return "tsv"
+    if ext == ".json":
+        return "json"
+    if ext == ".txt":
+        return "plain"
+
+    # Sniff: peek at the first non-empty non-section line.
+    with open(path, "r", encoding="utf-8") as f:
+        for ln in f:
+            s = ln.strip()
+            if not s or SECTION_HEADER_RE.match(s):
+                continue
+            if TIMESTAMP_LINE_RE.search(s):
+                return "lrc"
+            if s.startswith("[") or s.startswith("{"):
+                return "json"
+            if "\t" in s:
+                parts = s.split("\t")
+                try:
+                    float(parts[0]); float(parts[1])
+                    return "tsv"
+                except (IndexError, ValueError):
+                    pass
+            return "plain"
+    return "plain"
+
+
+def parse_lyrics(path):
+    """Return ('timed', [(start, end, text), ...]) or ('plain', [text, text, ...])."""
+    fmt = detect_format(path)
+    if fmt == "lrc":
+        return "timed", parse_lrc(path)
+    if fmt == "tsv":
+        return "timed", parse_tsv(path)
+    if fmt == "json":
+        return "timed", parse_json(path)
+    return "plain", parse_plain(path)
+
+
+# --------------------------------------------------------------------------- #
+# Whisper alignment for plain-text lyrics
+# --------------------------------------------------------------------------- #
+
+WORD_NORM_RE = re.compile(r"[^a-z0-9']+")
+
+def normalize_word(w):
+    return WORD_NORM_RE.sub("", w.lower())
+
+
+def tokenize_line(line):
+    return [t for t in (normalize_word(w) for w in line.split()) if t]
+
+
+def run_whisper(audio_path, model, language=None, work_dir=None):
+    """Shell out to openai-whisper CLI with word timestamps. Returns list of (word, start, end)."""
+    if shutil.which("whisper") is None:
+        sys.exit(
+            "plain-text lyrics need `whisper` for alignment, but it's not on PATH.\n"
+            "  install: pip install -U openai-whisper\n"
+            "  or:      pipx install openai-whisper\n"
+            "Alternatively, supply lyrics with timestamps (.lrc / .tsv / .json)."
+        )
+
+    work_dir = Path(work_dir) if work_dir else Path(tempfile.mkdtemp(prefix="lyric-video-whisper-"))
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    cmd = [
+        "whisper", str(audio_path),
+        "--model", model,
+        "--word_timestamps", "True",
+        "--output_format", "json",
+        "--output_dir", str(work_dir),
+        "--verbose", "False",
+    ]
+    if language:
+        cmd += ["--language", language]
+
+    print(f"[whisper] aligning lyrics against {audio_path.name} (model={model})...", flush=True)
+    print("+", " ".join(cmd), flush=True)
+    subprocess.run(cmd, check=True)
+
+    json_path = work_dir / (audio_path.stem + ".json")
+    if not json_path.exists():
+        # Some whisper versions name the file differently; pick the only .json in the dir.
+        candidates = list(work_dir.glob("*.json"))
+        if not candidates:
+            sys.exit(f"whisper did not produce a JSON output in {work_dir}")
+        json_path = candidates[0]
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    words = []
+    for seg in data.get("segments", []):
+        for w in seg.get("words", []):
+            text = (w.get("word") or "").strip()
+            if not text:
+                continue
+            try:
+                start = float(w["start"]); end = float(w["end"])
+            except (KeyError, ValueError):
+                continue
+            words.append((text, start, end))
+
+    if not words:
+        sys.exit(
+            "whisper returned no word-level timestamps. The whisper version may be too old; "
+            "upgrade with `pip install -U openai-whisper`."
+        )
+    print(f"[whisper] got {len(words)} words", flush=True)
+    return words
+
+
+def align_lines_to_words(lyric_lines, whisper_words, max_lookahead=80, min_score=0.4):
+    """
+    Greedily align lyric lines to whisper words.
+
+    Lyric sheet is canonical for spelling. Whisper provides timing. For each line,
+    search forward in the whisper word stream for the best matching contiguous span.
+    On a match, advance the cursor past it; on a miss, leave the cursor where it is
+    and skip the line (better to drop than show at wrong time).
+    """
+    word_norms = [normalize_word(w[0]) for w in whisper_words]
+    cursor = 0
+    matched = []
+    skipped = 0
+
+    for i, line in enumerate(lyric_lines):
+        tokens = tokenize_line(line)
+        if not tokens:
+            continue
+
+        target = " ".join(tokens)
+        max_idx = min(len(whisper_words), cursor + max(max_lookahead, len(tokens) * 6))
+        best = None  # (score, ws, we)
+
+        for ws in range(cursor, max_idx):
+            for delta in range(-2, 5):
+                length = len(tokens) + delta
+                if length < 1:
+                    continue
+                we = ws + length
+                if we > max_idx:
+                    break
+                window = " ".join(word_norms[ws:we])
+                if not window:
+                    continue
+                score = SequenceMatcher(None, target, window).ratio()
+                if best is None or score > best[0]:
+                    best = (score, ws, we)
+
+        if best is not None and best[0] >= min_score:
+            score, ws, we = best
+            start_t = whisper_words[ws][1]
+            end_t = whisper_words[we - 1][2]
+            matched.append((start_t, max(end_t, start_t + MIN_LINE_LEN), line))
+            cursor = we
+        else:
+            skipped += 1
+            print(f"[align] skip line {i+1} (no good match): {line!r}", file=sys.stderr)
+
+    if not matched:
+        sys.exit(
+            "could not align any lyric lines to the whisper transcript. "
+            "Likely causes: wrong audio, wrong language, or lyrics that don't match the audio."
+        )
+
+    # Tighten ends to avoid overlap
+    matched.sort(key=lambda r: r[0])
+    rows = [list(r) for r in matched]
+    for i in range(len(rows) - 1):
+        if rows[i][1] > rows[i + 1][0] - GAP:
+            rows[i][1] = max(rows[i][0] + MIN_LINE_LEN, rows[i + 1][0] - GAP)
+
+    print(
+        f"[align] matched {len(matched)} of {len(lyric_lines)} lyric lines "
+        f"({skipped} skipped)",
+        flush=True,
+    )
+    return [tuple(r) for r in rows]
+
+
+# --------------------------------------------------------------------------- #
+# ASS generation
+# --------------------------------------------------------------------------- #
 
 def fmt_time(t):
     h = int(t // 3600)
@@ -149,13 +344,16 @@ def build_ass(rows, out_path, font, font_size):
 
 
 def escape_ass_path(p):
-    """Escape a filesystem path for ffmpeg's filtergraph syntax."""
     s = str(p)
     s = s.replace("\\", "\\\\")
     s = s.replace(":", r"\:")
     s = s.replace("'", r"\'")
     return s
 
+
+# --------------------------------------------------------------------------- #
+# Main
+# --------------------------------------------------------------------------- #
 
 def run(cmd, **kw):
     print("+", " ".join(str(c) for c in cmd), flush=True)
@@ -169,19 +367,28 @@ def require(binary, hint):
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Combine audio + video + timestamped lyrics → subtitled music video"
+        description="Combine audio + video + lyrics → subtitled music video"
     )
     ap.add_argument("--audio", required=True, help="Audio file (mp3/wav/m4a/...)")
     ap.add_argument("--video", required=True, help="Video file at least as long as the audio")
-    ap.add_argument("--lyrics", required=True, help="Timestamped lyrics: .lrc / .tsv / .json")
+    ap.add_argument("--lyrics", required=True,
+                    help="Lyrics. Timestamped (.lrc/.tsv/.json) used as-is, "
+                         "or plain text (.txt) — auto-aligned via whisper.")
     ap.add_argument("--out", required=True, help="Output mp4 path")
     ap.add_argument("--font", default="Liberation Sans")
     ap.add_argument("--font-size", type=int, default=46)
-    ap.add_argument("--crf", type=int, default=18, help="x264 CRF (lower = better, default 18)")
-    ap.add_argument("--preset", default="medium", help="x264 preset (default medium)")
-    ap.add_argument("--ass", help="Path for the generated .ass (default: alongside output, deleted after)")
+    ap.add_argument("--crf", type=int, default=18)
+    ap.add_argument("--preset", default="medium")
+    ap.add_argument("--ass", help="Path for the generated .ass (default: alongside output)")
     ap.add_argument("--keep-ass", action="store_true", help="Keep the generated .ass file")
     ap.add_argument("--no-faststart", action="store_true", help="Skip the faststart remux pass")
+    ap.add_argument("--whisper-model", default="small",
+                    help="whisper model for plain-text alignment (tiny/base/small/medium/large)")
+    ap.add_argument("--whisper-language", default=None,
+                    help="language hint for whisper (e.g. 'en'). Auto-detected if omitted.")
+    ap.add_argument("--save-aligned-lyrics",
+                    help="After whisper alignment, also write a .tsv of (start, end, text) "
+                         "to this path. Lets you re-use the alignment without re-running whisper.")
     args = ap.parse_args()
 
     require("ffmpeg", "install via your package manager (e.g. `sudo apt install ffmpeg`)")
@@ -198,10 +405,28 @@ def main():
 
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    rows = parse_lyrics(lyrics)
-    if not rows:
-        sys.exit(f"no lyric lines parsed from {lyrics}")
-    print(f"parsed {len(rows)} lyric lines (first: {rows[0][0]:.2f}s, last: {rows[-1][0]:.2f}s)")
+    mode, content = parse_lyrics(lyrics)
+
+    if mode == "plain":
+        if not content:
+            sys.exit(f"no usable lyric lines in {lyrics}")
+        print(f"plain-text lyrics: {len(content)} lines, running whisper alignment...")
+        words = run_whisper(audio, model=args.whisper_model, language=args.whisper_language)
+        rows = align_lines_to_words(content, words)
+
+        if args.save_aligned_lyrics:
+            aligned = Path(args.save_aligned_lyrics).resolve()
+            aligned.parent.mkdir(parents=True, exist_ok=True)
+            with open(aligned, "w", encoding="utf-8") as f:
+                for start, end, text in rows:
+                    f.write(f"{start:.2f}\t{end:.2f}\t{text}\n")
+            print(f"saved aligned lyrics: {aligned}")
+    else:
+        rows = content
+        if not rows:
+            sys.exit(f"no lyric lines parsed from {lyrics}")
+
+    print(f"using {len(rows)} timed lines (first: {rows[0][0]:.2f}s, last: {rows[-1][0]:.2f}s)")
 
     ass_path = Path(args.ass).resolve() if args.ass else out.with_suffix(".ass")
     build_ass(rows, ass_path, args.font, args.font_size)

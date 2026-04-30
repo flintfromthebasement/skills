@@ -62,6 +62,17 @@ command -v python3 >/dev/null 2>&1 || die "python3 is required but not on PATH"
 FFMPEG_VER="$(ffmpeg -version 2>/dev/null | head -1 | awk '{print $3}')"
 log "ffmpeg ok ($FFMPEG_VER)"
 
+# Optional: whisper, only needed if user passes plain-text lyrics
+if command -v whisper >/dev/null 2>&1; then
+  WHISPER_VER="$(whisper --version 2>/dev/null | head -1 || echo unknown)"
+  log "whisper ok ($WHISPER_VER) — plain-text lyric alignment available"
+else
+  warn "whisper not found — plain-text lyric input will fail at runtime"
+  warn "  install with: pip install -U openai-whisper"
+  warn "  (or: pipx install openai-whisper)"
+  warn "  Timestamped formats (.lrc / .tsv / .json) work without whisper."
+fi
+
 # 3. Pick a bin dir for the entry point
 BIN_DIR=$(prompt "Install entry point into which directory? [$BIN_DIR_DEFAULT]" "$BIN_DIR_DEFAULT")
 mkdir -p "$BIN_DIR"
@@ -110,6 +121,9 @@ mkdir -p "$CONFIG_DIR"
   printf 'bin_dir=%s\n'       "$BIN_DIR"
   printf 'entry=%s\n'         "$ENTRY_REAL"
   printf 'ffmpeg_version=%s\n' "$FFMPEG_VER"
+  if command -v whisper >/dev/null 2>&1; then
+    printf 'whisper=available\n'
+  fi
 } > "$RECEIPT"
 
 log "done. Try: $LINK_NAME --help"

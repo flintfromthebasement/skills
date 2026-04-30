@@ -1,0 +1,10 @@
+[Verse 1]
+This is line one of a sample lyric
+The skill bakes timestamps into a video
+
+[Chorus]
+Each line fades in and out
+The output is a streamable mp4
+
+[Outro]
+Replace this file with real lyrics to ship
