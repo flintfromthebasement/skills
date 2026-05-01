@@ -185,8 +185,13 @@ def tokenize_line(line):
     return [t for t in (normalize_word(w) for w in line.split()) if t]
 
 
-def run_whisper(audio_path, model, language=None, work_dir=None):
-    """Shell out to openai-whisper CLI with word timestamps. Returns list of (word, start, end)."""
+def run_whisper(audio_path, model, language=None, work_dir=None, save_segments_to=None):
+    """Shell out to openai-whisper CLI with word timestamps.
+
+    Returns list of (word, start, end). If save_segments_to is given, copies the
+    whisper segments.json (with full segment text and word-level timing) there
+    so the caller can hand-time gaps using whisper's natural phrase boundaries.
+    """
     if shutil.which("whisper") is None:
         sys.exit(
             "plain-text lyrics need `whisper` for alignment, but it's not on PATH.\n"
@@ -224,6 +229,13 @@ def run_whisper(audio_path, model, language=None, work_dir=None):
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
+    if save_segments_to is not None:
+        try:
+            shutil.copyfile(json_path, save_segments_to)
+            print(f"[whisper] saved segments JSON: {save_segments_to}", flush=True)
+        except OSError as e:
+            print(f"[whisper] could not save segments JSON to {save_segments_to}: {e}", file=sys.stderr)
+
     words = []
     for seg in data.get("segments", []):
         for w in seg.get("words", []):
@@ -245,7 +257,7 @@ def run_whisper(audio_path, model, language=None, work_dir=None):
     return words
 
 
-def align_lines_to_words(lyric_lines, whisper_words, max_lookahead=80, min_score=0.4):
+def align_lines_to_words(lyric_lines, whisper_words, max_lookahead=400, min_score=0.4):
     """
     Greedily align lyric lines to whisper words.
 
@@ -253,6 +265,13 @@ def align_lines_to_words(lyric_lines, whisper_words, max_lookahead=80, min_score
     search forward in the whisper word stream for the best matching contiguous span.
     On a match, advance the cursor past it; on a miss, leave the cursor where it is
     and skip the line (better to drop than show at wrong time).
+
+    `max_lookahead` is the maximum number of whisper words searched ahead of the
+    cursor for the next match. Default 400 covers ~2-3 minutes of sung lyrics —
+    intentionally generous so songs with long instrumentals or repeated choruses
+    (Suno tracks especially) don't lose lines after a verse-to-chorus jump. Lower
+    it (e.g. 80) for short clips where a tight bound prevents misalignment, or
+    raise it for very long tracks.
     """
     word_norms = [normalize_word(w[0]) for w in whisper_words]
     cursor = 0
@@ -291,7 +310,13 @@ def align_lines_to_words(lyric_lines, whisper_words, max_lookahead=80, min_score
             cursor = we
         else:
             skipped += 1
-            print(f"[align] skip line {i+1} (no good match): {line!r}", file=sys.stderr)
+            cursor_t = whisper_words[cursor][1] if cursor < len(whisper_words) else -1.0
+            best_score = best[0] if best else 0.0
+            print(
+                f"[align] skip line {i+1} at cursor t={cursor_t:.2f}s "
+                f"(best score {best_score:.2f} < {min_score}): {line!r}",
+                file=sys.stderr,
+            )
 
     if not matched:
         sys.exit(
@@ -311,6 +336,14 @@ def align_lines_to_words(lyric_lines, whisper_words, max_lookahead=80, min_score
         f"({skipped} skipped)",
         flush=True,
     )
+    if skipped > 0:
+        print(
+            f"[align] tip: re-run with `--save-aligned-lyrics aligned.tsv` to capture "
+            f"the matched timestamps, then hand-fill the {skipped} skipped line(s) "
+            f"using whisper's segments.json (saved alongside aligned.tsv) and re-run "
+            f"with `--lyrics aligned.tsv` to skip whisper next time.",
+            file=sys.stderr,
+        )
     return [tuple(r) for r in rows]
 
 
@@ -388,7 +421,15 @@ def main():
                     help="language hint for whisper (e.g. 'en'). Auto-detected if omitted.")
     ap.add_argument("--save-aligned-lyrics",
                     help="After whisper alignment, also write a .tsv of (start, end, text) "
-                         "to this path. Lets you re-use the alignment without re-running whisper.")
+                         "to this path. Lets you re-use the alignment without re-running whisper. "
+                         "Whisper's raw segments.json is saved alongside (same stem, .segments.json) "
+                         "so you can hand-fill any dropped lines using whisper's natural phrase "
+                         "boundaries.")
+    ap.add_argument("--max-lookahead", type=int, default=400,
+                    help="Max whisper words searched ahead of the alignment cursor for the next "
+                         "lyric match. Default 400 covers ~2-3 minutes of vocals — generous so "
+                         "songs with long instrumentals or repeated choruses don't drop lines "
+                         "after a verse-to-chorus jump. Lower to ~80 for short clips.")
     args = ap.parse_args()
 
     require("ffmpeg", "install via your package manager (e.g. `sudo apt install ffmpeg`)")
@@ -411,12 +452,23 @@ def main():
         if not content:
             sys.exit(f"no usable lyric lines in {lyrics}")
         print(f"plain-text lyrics: {len(content)} lines, running whisper alignment...")
-        words = run_whisper(audio, model=args.whisper_model, language=args.whisper_language)
-        rows = align_lines_to_words(content, words)
-
+        # If the user wants the aligned TSV saved, also park whisper's segments.json
+        # next to it (same stem, .segments.json) so they can hand-time any skipped
+        # lines using whisper's natural phrase boundaries.
+        segments_dest = None
         if args.save_aligned_lyrics:
             aligned = Path(args.save_aligned_lyrics).resolve()
             aligned.parent.mkdir(parents=True, exist_ok=True)
+            segments_dest = aligned.with_suffix(".segments.json")
+        words = run_whisper(
+            audio,
+            model=args.whisper_model,
+            language=args.whisper_language,
+            save_segments_to=segments_dest,
+        )
+        rows = align_lines_to_words(content, words, max_lookahead=args.max_lookahead)
+
+        if args.save_aligned_lyrics:
             with open(aligned, "w", encoding="utf-8") as f:
                 for start, end, text in rows:
                     f.write(f"{start:.2f}\t{end:.2f}\t{text}\n")

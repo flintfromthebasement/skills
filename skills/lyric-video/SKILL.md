@@ -26,9 +26,29 @@ Subtitles are burned into the video as styled ASS with fade-in/out. The video's 
 
 ## When NOT to use
 
-- Footage is shorter than the song. Loop, boomerang, or extend it first — this skill assumes the visual already covers the audio length.
+- Footage is shorter than the song. Loop, boomerang, or extend it first — this skill assumes the visual already covers the audio length. (Recipe below.)
 - You want audio-reactive lights, glows, particle overlays, or other generative effects on top. That's a different skill (sister variant); this one is the plain subtitle-burn baseline.
 - The audio doesn't actually contain the lyrics (instrumental, different language, mismatched track). Whisper will produce gibberish and alignment will fail.
+
+### Extending short footage
+
+If your visual is a few seconds and the song is 4 minutes, build a long boomerang clip first. Boomerang (forward + reverse) hides the loop seam; plain `loop` shows a hard cut every cycle.
+
+```bash
+# 1. One forward+reverse unit (the loop primitive — silent, no audio)
+ffmpeg -i footage.mp4 \
+  -filter_complex "[0:v]split=2[fwd][rev];[rev]reverse[reversed];[fwd][reversed]concat=n=2:v=1[v]" \
+  -map "[v]" -an boomerang_unit.mp4
+
+# 2. Stream-copy that unit N times until it covers the song length.
+#    -stream_loop is much faster than re-encoding a long concat.
+#    N = ceil(song_seconds / unit_seconds). Pad a few seconds.
+ffmpeg -stream_loop 19 -i boomerang_unit.mp4 -t 235 -c copy -an long.mp4
+
+# 3. Feed long.mp4 to make-lyric-video as --video.
+```
+
+`-stream_loop` requires identical codec/timebase across copies, which is automatic when you loop a single file with `-c copy`. It avoids re-encoding entirely — the whole step is a remux.
 
 ## Setup
 
@@ -96,7 +116,8 @@ That's the whole golden path. Output goes to `final.mp4`.
 | `--no-faststart` | off | Skip the faststart remux. Output won't begin playback until fully buffered. |
 | `--whisper-model` | `small` | whisper model for plain-text alignment. `tiny`/`base`/`small`/`medium`/`large`. Bigger = slower + more accurate. |
 | `--whisper-language` | auto | Language hint for whisper (e.g. `en`). Speeds up alignment + avoids language-detection mistakes. |
-| `--save-aligned-lyrics` | off | After whisper alignment, save a `.tsv` of the resulting timestamps to this path. Re-use it next time instead of re-running whisper. |
+| `--save-aligned-lyrics` | off | After whisper alignment, save a `.tsv` of the resulting timestamps to this path. Re-use it next time instead of re-running whisper. Whisper's raw segments are also written next to it as `<stem>.segments.json` for hand-fixing dropped lines. |
+| `--max-lookahead` | `400` | Max whisper words the aligner searches ahead of its cursor for the next lyric match. 400 ≈ 2–3 minutes of vocals — covers long instrumental gaps and verse-to-chorus jumps. Lower to ~80 for short clips. Raise it if you see legitimate lines dropped right after an instrumental break. |
 
 ## Lyric formats
 
@@ -208,7 +229,7 @@ The two-pass split is on purpose. The `+faststart` step relocates the `moov` ato
 - **No video extension.** Length-mismatched inputs use `-shortest` and silently truncate. If your song is 4:00 and your footage is 2:30, fix that upstream.
 - **No audio-reactive overlays.** No lights, no glows, no particles. This is the plain-subtitle baseline. Sister skills can layer effects.
 - **No styling beyond defaults.** The ASS style is a single sane preset (Liberation Sans, light text, soft shadow, bottom-center). Hand-edit the generated `.ass` (with `--keep-ass`) for one-off restyling, or fork the script for a different default.
-- **No fancier alignment.** Plain-text mode uses whisper word-timestamps + a greedy fuzzy match. Good enough for clean studio vocals; can struggle on heavy mixing, ad-libs, or rapid delivery. If a line drops out of the alignment, fix it by feeding the file in as TSV with hand-corrected timing.
+- **No fancier alignment.** Plain-text mode uses whisper word-timestamps + a greedy fuzzy match. Good enough for clean studio vocals; can struggle on heavy mixing, ad-libs, or rapid delivery. If a line drops out of the alignment, fix it by feeding the file in as TSV with hand-corrected timing — `--save-aligned-lyrics` writes the partial TSV plus whisper's raw `.segments.json` so you have phrase-level timestamps as anchors.
 
 ## Files
 
@@ -237,6 +258,26 @@ rm -rf ~/.config/lyric-video
 **Lyrics drift / wrong line on screen** — your timestamps are off. The skill prints what it parsed; cross-check against the audio. Common causes: LRC offsets in the source file, frame-rate confusion (timestamps are in seconds, not frames), or a whisper alignment that mismatched on a noisy section. Try a bigger whisper model (`--whisper-model medium` or `large`) and pass `--whisper-language en` to skip auto-detection.
 
 **Plain-text lyrics: too many lines dropped** — whisper isn't recognizing the words. Try `--whisper-model medium` or `large` for better accuracy, set `--whisper-language` explicitly, or fall back to writing a TSV by hand. The dropped-line stderr output tells you which lines failed; you can fix just those in a TSV and re-run.
+
+**Repeated chorus / long instrumentals: alignment falls off after the first chorus** — the greedy aligner walks forward through whisper's word stream and never goes back. If the lookahead window doesn't cover an instrumental break or a long repeated section, every subsequent line drops too. The `--max-lookahead 400` default handles most songs; raise it if you see a clean run of lines drop the moment the cursor crosses an instrumental gap. If raising the window doesn't fix it, hand-time the rest:
+
+```bash
+# 1. Run once with --save-aligned-lyrics to capture both the partial TSV
+#    and the raw whisper phrase boundaries.
+make-lyric-video --audio song.mp3 --video footage.mp4 --lyrics lyrics.txt \
+  --out final.mp4 --save-aligned-lyrics aligned.tsv
+# → aligned.tsv (auto-aligned lines, missing the dropouts)
+# → aligned.segments.json (whisper's full phrase list with start/end timestamps)
+
+# 2. Open aligned.segments.json next to lyrics.txt. Each whisper segment
+#    has start/end + a text guess. Use the timestamps as anchors to fill
+#    in the missing lyric lines in aligned.tsv (whisper hears the timing
+#    even when it mis-hears the words).
+
+# 3. Re-run pointing at the hand-edited TSV — no whisper, no alignment:
+make-lyric-video --audio song.mp3 --video footage.mp4 --lyrics aligned.tsv \
+  --out final.mp4
+```
 
 **Plain-text alignment is slow** — whisper is the bottleneck, not the encode. The `small` default takes a few minutes on a 4-minute song on CPU; `medium`/`large` are slower. Run once with `--save-aligned-lyrics aligned.tsv` and re-feed that TSV on subsequent renders to skip the whisper step entirely.
 
