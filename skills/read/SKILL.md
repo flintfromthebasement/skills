@@ -57,19 +57,19 @@ The setup checks node + npm, installs node deps (Readability, JSDOM, rss-parser,
 
 ```bash
 # Default — deep read with cache, store memory, markdown output
-node scripts/read.mjs https://example.com/article
+node scripts/read.mjs https://flint.fountain.network/blog/2026-02-20-the-respond-gap-why-autonomous-agents-have-no-panic-button/
 
 # Skim mode for triage
-node scripts/read.mjs https://example.com/article --depth=skim
+node scripts/read.mjs https://flint.fountain.network/blog/2026-02-20-the-respond-gap-why-autonomous-agents-have-no-panic-button/ --depth=skim
 
 # Force re-fetch (bypass cache)
-node scripts/read.mjs https://example.com/article --force
+node scripts/read.mjs https://flint.fountain.network/blog/2026-02-20-the-respond-gap-why-autonomous-agents-have-no-panic-button/ --force
 
 # Skip the read-history memory write
-node scripts/read.mjs https://example.com/article --no-store
+node scripts/read.mjs https://flint.fountain.network/blog/2026-02-20-the-respond-gap-why-autonomous-agents-have-no-panic-button/ --no-store
 
 # JSON output (easier to parse from a calling agent)
-node scripts/read.mjs https://example.com/article --json
+node scripts/read.mjs https://flint.fountain.network/blog/2026-02-20-the-respond-gap-why-autonomous-agents-have-no-panic-button/ --json
 
 # YouTube
 node scripts/read.mjs "https://www.youtube.com/watch?v=VIDEO_ID"
@@ -79,9 +79,9 @@ node scripts/read.mjs "https://www.youtube.com/watch?v=VIDEO_ID"
 
 ```bash
 # Subscribe — paste a blog homepage, RSS URL, or YouTube channel URL
-node scripts/read.mjs sub https://simonwillison.net/
+node scripts/read.mjs sub https://flint.fountain.network
 node scripts/read.mjs sub https://www.youtube.com/channel/UCHnyfMqiRRG1u-2MsSQLbXA
-node scripts/read.mjs sub http://example.com/feed.xml
+node scripts/read.mjs sub https://flint.fountain.network/rss.xml
 
 # List subscriptions
 node scripts/read.mjs feeds
@@ -91,14 +91,14 @@ node scripts/read.mjs feeds --json
 node scripts/read.mjs refresh
 
 # Refresh just one feed
-node scripts/read.mjs refresh --feed simon-willison-s-weblog
+node scripts/read.mjs refresh --feed flint-from-the-basement
 
 # Unsubscribe (by slug or URL)
-node scripts/read.mjs unsub simon-willison-s-weblog
-node scripts/read.mjs unsub https://simonwillison.net/
+node scripts/read.mjs unsub flint-from-the-basement
+node scripts/read.mjs unsub https://flint.fountain.network
 
 # Then read an individual item the normal way
-node scripts/read.mjs https://simonwillison.net/2026/...
+node scripts/read.mjs https://flint.fountain.network/blog/2026-02-20-the-respond-gap-why-autonomous-agents-have-no-panic-button/
 ```
 
 The `refresh` output gives the agent a list of new item URLs. To actually read one, pipe its `url` back into `read <url>` — this keeps feed-management and content-fetching cleanly separated.
@@ -133,10 +133,10 @@ YouTube `@handle` URLs aren't supported in v1 — pass the `/channel/UC...` URL 
 
 ```
 ---
-title: The Title
-source: example.com
-byline: Some Author
-url: https://example.com/article
+title: 'The Respond Gap: Why Autonomous Agents Have No Panic Button'
+source: flint.fountain.network
+byline: Flint
+url: https://flint.fountain.network/blog/2026-02-20-the-respond-gap-why-autonomous-agents-have-no-panic-button/
 kind: article
 fetched: 2026-05-03T20:24:00.000Z
 refreshed: 2026-05-03T20:24:00.000Z
@@ -149,7 +149,7 @@ truncated: false
 memory: automem
 ---
 
-# The Title
+# The Respond Gap: Why Autonomous Agents Have No Panic Button
 
 [full article body]
 ```
