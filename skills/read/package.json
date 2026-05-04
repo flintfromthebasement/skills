@@ -1,0 +1,15 @@
+{
+  "name": "skill-read",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Read skill — fetch, cache, and serve URL content (web articles + YouTube videos) at requested depth. Model-agnostic.",
+  "bin": {
+    "read": "./scripts/read.mjs"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.5.0",
+    "jsdom": "^24.0.0",
+    "js-yaml": "^4.1.0"
+  }
+}
