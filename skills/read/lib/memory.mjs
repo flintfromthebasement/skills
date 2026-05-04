@@ -14,28 +14,11 @@ async function appendFallback(record) {
   return { stored: 'fallback', file };
 }
 
-export async function storeReadMemory({ title, source, url, kind, depth }) {
-  const tags = ['maurice', 'reading', kind || 'article'];
-  if (source) {
-    const slug = source.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    if (slug) tags.push(`read-source:${slug}`);
-  }
-  if (depth) tags.push(`depth:${depth}`);
-
-  const content = `Read: "${title || 'Untitled'}"${source ? ` from ${source}` : ''}. ${url}`;
-  const body = {
-    content,
-    tags,
-    importance: 0.5,
-    type: 'Context',
-    metadata: { url, title, source, kind, depth },
-  };
-
+async function postMemory(body) {
   const endpoint = process.env.AUTOMEM_ENDPOINT;
   if (!endpoint) {
     return appendFallback({ ts: new Date().toISOString(), reason: 'no-endpoint', body });
   }
-
   try {
     const headers = { 'Content-Type': 'application/json' };
     if (process.env.AUTOMEM_API_KEY) {
@@ -54,4 +37,39 @@ export async function storeReadMemory({ title, source, url, kind, depth }) {
   } catch (err) {
     return appendFallback({ ts: new Date().toISOString(), reason: err.message, body });
   }
+}
+
+function sourceSlug(source) {
+  if (!source) return null;
+  const slug = source.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return slug || null;
+}
+
+export async function storeReadMemory({ title, source, url, kind, depth }) {
+  const tags = ['reading', kind || 'article'];
+  const slug = sourceSlug(source);
+  if (slug) tags.push(`read-source:${slug}`);
+  if (depth) tags.push(`depth:${depth}`);
+
+  const content = `Read: "${title || 'Untitled'}"${source ? ` from ${source}` : ''}. ${url}`;
+  return postMemory({
+    content,
+    tags,
+    importance: 0.5,
+    type: 'Context',
+    metadata: { url, title, source, kind, depth },
+  });
+}
+
+export async function storeSubscribeMemory({ name, feedUrl, sourceUrl, slug, kind }) {
+  const tags = ['reading', 'subscribe', kind || 'rss'];
+  if (slug) tags.push(`feed-source:${slug}`);
+  const content = `Subscribed to feed: "${name || feedUrl}". ${feedUrl}`;
+  return postMemory({
+    content,
+    tags,
+    importance: 0.5,
+    type: 'Context',
+    metadata: { name, feed_url: feedUrl, source_url: sourceUrl, slug, kind },
+  });
 }
