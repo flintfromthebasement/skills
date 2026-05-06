@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Context Window — Claude Code (blank project)</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg-elev: #111827;
+    --bg-elev-2: #1a2033;
+    --border: #1f2937;
+    --text: #e5e7eb;
+    --muted: #94a3b8;
+    --dim: #64748b;
+    --accent: #22d3ee;
+
+    --c-system: #a78bfa;
+    --c-skill:  #f59e0b;
+    --c-memory: #10b981;
+    --c-user:   #3b82f6;
+    --c-assist: #d8b4fe;
+    --c-tool:   #ef4444;
+    --c-hook:   #14b8a6;
+    --c-workspace: #ec4899;
+
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-sans); line-height: 1.5; font-size: 14px; padding: 24px; max-width: 1280px; margin: 0 auto; }
+  nav.tabs { display: flex; gap: 2px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .tab { background: transparent; border: 1px solid transparent; border-bottom: none; color: var(--muted); font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.5px; padding: 12px 20px; cursor: pointer; border-radius: 6px 6px 0 0; transition: all 150ms; display: flex; align-items: center; gap: 8px; position: relative; top: 1px; }
+  .tab:hover { color: var(--text); background: var(--bg-elev); }
+  .tab.active { color: var(--accent); background: var(--bg-elev); border-color: var(--border); border-bottom-color: var(--bg-elev); }
+  .tab-icon { font-size: 14px; }
+  .tab-pct { font-size: 10px; color: var(--dim); background: var(--bg-elev-2); padding: 2px 6px; border-radius: 10px; }
+  .tab.active .tab-pct { color: var(--accent); }
+  header.top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .status-line { font-family: var(--font-mono); font-size: 11px; letter-spacing: 1.5px; color: var(--c-memory); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .status-line::before { content: ""; width: 8px; height: 8px; background: var(--c-memory); border-radius: 50%; box-shadow: 0 0 8px var(--c-memory); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  h1 { font-family: var(--font-mono); font-size: 42px; font-weight: 300; margin: 0; color: var(--accent); letter-spacing: -0.5px; }
+  h1 .sub { font-size: 16px; color: var(--muted); letter-spacing: 0; margin-left: 12px; font-weight: 400; }
+  .meta-right { text-align: right; font-family: var(--font-mono); font-size: 12px; color: var(--muted); line-height: 1.8; }
+  .meta-right .k { color: var(--dim); }
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat { background: var(--bg-elev); border: 1px solid var(--border); padding: 14px 16px; border-radius: 4px; }
+  .stat .v { font-family: var(--font-mono); font-size: 24px; font-weight: 500; line-height: 1; margin-bottom: 6px; }
+  .stat .l { font-family: var(--font-mono); font-size: 10px; letter-spacing: 1.5px; color: var(--dim); text-transform: uppercase; }
+  .stat.used .v { color: var(--accent); }
+  .stat.free .v { color: #fbbf24; }
+  .stat.pct .v { color: var(--c-memory); }
+  .stat.blocks .v { color: var(--c-skill); }
+  .stat.turns .v { color: var(--c-user); }
+  .progress-wrap { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 4px; padding: 12px 16px; margin-bottom: 16px; font-family: var(--font-mono); font-size: 11px; }
+  .progress-label { display: flex; justify-content: space-between; color: var(--dim); letter-spacing: 1.5px; margin-bottom: 8px; font-size: 10px; text-transform: uppercase; }
+  .progress-bar { height: 10px; background: var(--bg-elev-2); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--c-system), var(--c-memory), var(--accent)); width: 0; transition: width 600ms ease-out; }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px 16px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 4px; margin-bottom: 20px; font-family: var(--font-mono); font-size: 11px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .swatch.system { background: var(--c-system); } .swatch.skill { background: var(--c-skill); } .swatch.memory { background: var(--c-memory); } .swatch.user { background: var(--c-user); } .swatch.assist { background: var(--c-assist); } .swatch.tool { background: var(--c-tool); } .swatch.hook { background: var(--c-hook); } .swatch.workspace { background: var(--c-workspace); }
+  .caption { font-family: var(--font-mono); font-size: 11px; color: var(--dim); margin-bottom: 12px; letter-spacing: 0.5px; }
+  main.blocks { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+  .block { background: var(--bg-elev); border: 1px solid var(--border); border-left: 4px solid var(--dim); border-radius: 4px; overflow: hidden; transition: border-color 150ms; }
+  .block:hover { border-color: #374151; }
+  .block.system { border-left-color: var(--c-system); } .block.skill { border-left-color: var(--c-skill); } .block.memory { border-left-color: var(--c-memory); } .block.user { border-left-color: var(--c-user); } .block.assist { border-left-color: var(--c-assist); } .block.tool { border-left-color: var(--c-tool); } .block.hook { border-left-color: var(--c-hook); } .block.workspace { border-left-color: var(--c-workspace); }
+  .block-header { display: grid; grid-template-columns: 90px 1fr auto auto; gap: 12px; padding: 10px 14px; cursor: pointer; align-items: center; user-select: none; }
+  .block-header:hover { background: var(--bg-elev-2); }
+  .type-badge { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; padding: 3px 6px; border-radius: 2px; text-align: center; font-weight: 600; }
+  .type-badge.system { background: color-mix(in srgb, var(--c-system) 20%, transparent); color: var(--c-system); }
+  .type-badge.skill { background: color-mix(in srgb, var(--c-skill) 20%, transparent); color: var(--c-skill); }
+  .type-badge.memory { background: color-mix(in srgb, var(--c-memory) 20%, transparent); color: var(--c-memory); }
+  .type-badge.user { background: color-mix(in srgb, var(--c-user) 20%, transparent); color: var(--c-user); }
+  .type-badge.assist { background: color-mix(in srgb, var(--c-assist) 20%, transparent); color: var(--c-assist); }
+  .type-badge.tool { background: color-mix(in srgb, var(--c-tool) 20%, transparent); color: var(--c-tool); }
+  .type-badge.hook { background: color-mix(in srgb, var(--c-hook) 20%, transparent); color: var(--c-hook); }
+  .type-badge.workspace { background: color-mix(in srgb, var(--c-workspace) 20%, transparent); color: var(--c-workspace); }
+  .block-label { font-size: 14px; font-weight: 500; color: var(--text); }
+  .block-source { display: block; font-family: var(--font-mono); font-size: 11px; color: var(--dim); margin-top: 2px; }
+  .tok { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  .tok .n { color: var(--accent); font-weight: 500; }
+  .chev { color: var(--dim); font-size: 14px; transition: transform 200ms; }
+  .block[data-state="preview"] .chev, .block[data-state="full"] .chev { transform: rotate(90deg); color: var(--text); }
+  .block-body { display: none; padding: 14px 18px 18px; border-top: 1px solid var(--border); background: #070a14; }
+  .block[data-state="preview"] .block-body, .block[data-state="full"] .block-body { display: block; }
+  .block-body pre { font-family: var(--font-mono); font-size: 12px; line-height: 1.6; color: #cbd5e1; white-space: pre-wrap; word-break: break-word; margin: 0; }
+  .ellipsis { display: block; padding: 8px 0; color: var(--dim); font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px; }
+  .block-actions { display: flex; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+  .btn { font-family: var(--font-mono); font-size: 11px; background: transparent; color: var(--muted); border: 1px solid var(--border); padding: 5px 10px; border-radius: 3px; cursor: pointer; letter-spacing: 0.5px; transition: all 150ms; }
+  .btn:hover { background: var(--bg-elev-2); color: var(--text); border-color: var(--accent); }
+  .btn.primary { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+  .section-title { font-family: var(--font-mono); font-size: 11px; color: var(--dim); letter-spacing: 2px; text-transform: uppercase; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .breakdown { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .bd-card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 4px; padding: 12px 14px; }
+  .bd-card .label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px; color: var(--dim); margin-bottom: 6px; text-transform: uppercase; }
+  .bd-card .value { font-family: var(--font-mono); font-size: 20px; font-weight: 500; }
+  .bd-card .minibar { height: 3px; background: var(--bg-elev-2); margin-top: 8px; border-radius: 1px; overflow: hidden; }
+  .bd-card .minibar-fill { height: 100%; opacity: 0.8; }
+  .bd-card.system .value { color: var(--c-system); } .bd-card.system .minibar-fill { background: var(--c-system); }
+  .bd-card.skill .value { color: var(--c-skill); } .bd-card.skill .minibar-fill { background: var(--c-skill); }
+  .bd-card.memory .value { color: var(--c-memory); } .bd-card.memory .minibar-fill { background: var(--c-memory); }
+  .bd-card.user .value { color: var(--c-user); } .bd-card.user .minibar-fill { background: var(--c-user); }
+  .bd-card.assist .value { color: var(--c-assist); } .bd-card.assist .minibar-fill { background: var(--c-assist); }
+  .bd-card.tool .value { color: var(--c-tool); } .bd-card.tool .minibar-fill { background: var(--c-tool); }
+  .bd-card.hook .value { color: var(--c-hook); } .bd-card.hook .minibar-fill { background: var(--c-hook); }
+  .bd-card.workspace .value { color: var(--c-workspace); } .bd-card.workspace .minibar-fill { background: var(--c-workspace); }
+  .footer-note { margin-top: 40px; padding: 16px; background: var(--bg-elev); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 4px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+  .footer-note code { background: var(--bg-elev-2); padding: 1px 6px; border-radius: 2px; font-size: 11px; color: var(--accent); }
+  .controls { display: flex; gap: 8px; margin-bottom: 12px; }
+  @media (max-width: 768px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .block-header { grid-template-columns: 80px 1fr auto; }
+    .chev { display: none; }
+    h1 { font-size: 28px; }
+    h1 .sub { display: block; margin: 4px 0 0; }
+    nav.tabs { overflow-x: auto; }
+    .tab { white-space: nowrap; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="tabs" id="tabs"></nav>
+<header class="top">
+  <div>
+    <div class="status-line" id="status-line"></div>
+    <h1 id="title"></h1>
+  </div>
+  <div class="meta-right" id="meta-right"></div>
+</header>
+<div class="stats" id="stats"></div>
+<div class="progress-wrap">
+  <div class="progress-label">
+    <span id="progress-label">CONTEXT CAPACITY</span>
+    <span id="progress-pct"></span>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+</div>
+<div class="legend">
+  <div class="legend-item"><span class="swatch system"></span>System</div>
+  <div class="legend-item"><span class="swatch workspace"></span>Workspace</div>
+  <div class="legend-item"><span class="swatch memory"></span>Memory</div>
+  <div class="legend-item"><span class="swatch user"></span>User</div>
+  <div class="legend-item"><span class="swatch assist"></span>Assistant</div>
+  <div class="legend-item"><span class="swatch tool"></span>Tool / Result</div>
+  <div class="legend-item"><span class="swatch hook"></span>Hook Output</div>
+  <div class="legend-item"><span class="swatch skill"></span>Skill</div>
+</div>
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button class="btn" onclick="collapseAll()">Collapse all</button>
+  <button class="btn" onclick="previewAll()">Preview all</button>
+</div>
+<main class="blocks" id="blocks"></main>
+<div class="section-title">Token breakdown by type</div>
+<div class="breakdown" id="breakdown"></div>
+<div class="footer-note" id="footer-note"></div>
+
+<!-- ─────────────────────────────────────────────────────────────
+     RAW CONTENT BLOCKS
+     Synthetic content built for the example. Anything in here is
+     illustrative — not a verbatim Claude Code system prompt.
+     ───────────────────────────────────────────────────────────── -->
+
+<script type="text/plain" id="cc-harness">You are Claude Code, the official CLI for Claude.
+
+You are an interactive agent that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.
+
+# Tone and style
+- Default to short, direct answers.
+- Prefer file_path:line_number when pointing at code.
+- Skip filler ("Great question!"). State the result, then reasoning if needed.
+
+# Tools
+- Prefer dedicated tools (Read, Edit, Write) over shelling out.
+- Run independent tool calls in parallel.
+- Confirm before destructive or hard-to-reverse actions.
+
+# Doing tasks
+- For exploratory questions, answer in 2-3 sentences with one recommendation
+  and the main tradeoff. Do not implement until the user agrees.
+- Default to writing no comments. Only add a comment when the WHY is
+  non-obvious.
+- Don't add features beyond what was asked. No premature abstractions.
+
+# Environment
+- Working directory: /home/sample/projects/blank
+- Platform: linux · Shell: bash
+- Model: claude-opus-4-7
+- No CLAUDE.md present.</script>
+
+<script type="text/plain" id="cc-tools">Loaded tool schemas (8):
+- Bash(command, description, run_in_background?, timeout?)
+- Read(file_path, offset?, limit?)
+- Write(file_path, content)
+- Edit(file_path, old_string, new_string, replace_all?)
+- Glob(pattern, path?)
+- Grep(pattern, path?, glob?, output_mode?, ...)
+- TodoWrite(todos[])
+- Skill(skill, args?)
+
+Each schema averages ~400 tokens once you include parameter docs and JSON-schema
+metadata, so the loaded set comes to roughly 3.2k tokens. Deferred tools
+(Agent, WebFetch, AskUserQuestion, NotebookEdit, EnterPlanMode, ...) only
+appear by name in a system reminder until the model fetches them via
+ToolSearch.</script>
+
+<script type="text/plain" id="cc-deferred">Deferred tools — names only, schemas not loaded:
+Agent, AskUserQuestion, CronCreate, CronDelete, CronList, EnterPlanMode,
+EnterWorktree, ExitPlanMode, ExitWorktree, Monitor, NotebookEdit,
+PushNotification, RemoteTrigger, TaskCreate, TaskGet, TaskList, TaskOutput,
+TaskStop, TaskUpdate, ToolSearch, WebFetch, WebSearch.
+
+To call any of these, the model must first call ToolSearch to load the
+JSONSchema definition. Costs roughly 1.2k tokens to keep this list in context.</script>
+
+<script type="text/plain" id="cc-meta">Session metadata block (injected by the harness on session start):
+
+userEmail: sample@example.com
+currentDate: 2026-05-06
+gitStatus: not a git repository
+cwd: /home/sample/projects/blank
+gitBranch: (none)
+
+The harness uses this to prevent the model from confidently claiming the
+wrong date or fabricating a git branch name.</script>
+
+<script type="text/plain" id="cc-t1-user">whats in this directory?</script>
+
+<script type="text/plain" id="cc-t1-tool">Tool call: Bash
+{ "command": "ls -la", "description": "List directory contents" }
+
+Tool result:
+total 12
+drwxr-xr-x 2 sample sample 4096 May  6 09:14 .
+drwxr-xr-x 8 sample sample 4096 May  6 09:14 ..
+-rw-r--r-- 1 sample sample    0 May  6 09:14 README.md
+-rw-r--r-- 1 sample sample   42 May  6 09:14 notes.txt</script>
+
+<script type="text/plain" id="cc-t1-assist">Two files: an empty `README.md` and a small `notes.txt` (42 bytes). No git repo, no package manifest, no source code yet. What are you trying to build?</script>
+
+<script type="text/plain" id="cc-t2-user">read notes.txt and tell me what to do next</script>
+
+<script type="text/plain" id="cc-t2-tool">Tool call: Read
+{ "file_path": "/home/sample/projects/blank/notes.txt" }
+
+Tool result:
+     1	idea: a tiny CLI to grep my journal entries
+     2	must support fuzzy matching</script>
+
+<script type="text/plain" id="cc-t2-assist">Two-line spec: a CLI that fuzzy-greps journal entries.
+
+Quickest path: a single Python file using `rapidfuzz` for matching, plus `argparse` for the CLI. ~50 lines. Tradeoff vs. Node/Go: Python's the fastest to ship but requires `pip install rapidfuzz` on every machine.
+
+Want me to scaffold it that way, or do you have a language preference?</script>
+
+<script type="text/plain" id="cc-t3-user">python is fine. one file.</script>
+
+<script type="text/plain" id="cc-t3-tool">Tool call: Write
+{ "file_path": "/home/sample/projects/blank/jgrep.py",
+  "content": "#!/usr/bin/env python3\n\"\"\"Tiny fuzzy grep over a journal directory.\"\"\"\nimport argparse, sys\nfrom pathlib import Path\nfrom rapidfuzz import fuzz\n\ndef main():\n    p = argparse.ArgumentParser()\n    p.add_argument('query')\n    p.add_argument('--dir', default='.')\n    p.add_argument('--threshold', type=int, default=70)\n    args = p.parse_args()\n    for f in Path(args.dir).rglob('*.md'):\n        for i, line in enumerate(f.read_text().splitlines(), 1):\n            score = fuzz.partial_ratio(args.query.lower(), line.lower())\n            if score >= args.threshold:\n                print(f'{f}:{i}: {line}')\n\nif __name__ == '__main__':\n    main()\n" }
+
+Tool result: File created successfully at /home/sample/projects/blank/jgrep.py</script>
+
+<script type="text/plain" id="cc-t3-assist">Wrote `jgrep.py` (single file, 18 lines).
+
+Run it like:
+  pip install rapidfuzz
+  python jgrep.py "search term" --dir ~/journal --threshold 75
+
+Threshold 70 is a forgiving default; raise it to 85 if you're getting too much noise.</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     RENDER SCRIPT + TAB DEFINITIONS
+     ═══════════════════════════════════════════════════════════════ -->
+<script>
+const TABS = {
+  'blank-project': {
+    id: 'blank-project',
+    label: 'Claude Code',
+    icon: '⚡',
+    title: 'Context Window',
+    subtitle: 'Claude Code CLI · blank project',
+    statusText: 'EXAMPLE SESSION · NO CLAUDE.MD · 3 TURNS',
+    meta: [
+      ['Model',   'claude-opus-4-7'],
+      ['Limit',   '200,000 tokens'],
+      ['Runtime', 'Claude Code CLI'],
+      ['Project', '/home/sample/projects/blank · no CLAUDE.md, no git'],
+    ],
+    tokensUsed: 12500,
+    tokensLimit: 200000,
+    caption: 'Top-down chronological · system prompt first · click a block to preview · click Show full for verbatim text',
+    footer: '<strong>How this was built:</strong> Synthetic example built for the <code>context-window</code> skill. Demonstrates what a Claude Code session looks like with no project-level CLAUDE.md, no hooks, and no AutoMem recall configured. Token counts are estimated at <code>chars / 4</code>; a real tokenizer call would shift them by ~10–20%. The harness system prompt block is condensed for readability — the real harness prompt is roughly 5k tokens.',
+    blocks: [
+      { id: 'cc-harness',  type: 'system', label: 'Harness system prompt',     source: 'Claude Code CLI default prompt',          tokens: 5500 },
+      { id: 'cc-tools',    type: 'system', label: 'Loaded tool schemas (8)',   source: 'Bash, Read, Write, Edit, Grep, ...',     tokens: 3200 },
+      { id: 'cc-deferred', type: 'system', label: 'Deferred tool names',       source: 'Loaded on demand via ToolSearch',         tokens: 1200 },
+      { id: 'cc-meta',     type: 'system', label: 'Session metadata',          source: 'userEmail / currentDate / gitStatus',     tokens: 200 },
+
+      { id: 'cc-t1-user',   type: 'user',   label: 'Turn 1 · User',            source: 'sample@example.com',                       tokens: 8 },
+      { id: 'cc-t1-tool',   type: 'tool',   label: 'Turn 1 · ls -la',          source: 'Bash tool call + result',                  tokens: 90 },
+      { id: 'cc-t1-assist', type: 'assist', label: 'Turn 1 · Assistant',       source: 'Reply',                                    tokens: 60 },
+
+      { id: 'cc-t2-user',   type: 'user',   label: 'Turn 2 · User',            source: 'sample@example.com',                       tokens: 12 },
+      { id: 'cc-t2-tool',   type: 'tool',   label: 'Turn 2 · Read notes.txt',  source: 'Read tool call + result',                  tokens: 60 },
+      { id: 'cc-t2-assist', type: 'assist', label: 'Turn 2 · Assistant',       source: 'Spec interpretation + recommendation',     tokens: 130 },
+
+      { id: 'cc-t3-user',   type: 'user',   label: 'Turn 3 · User',            source: 'sample@example.com',                       tokens: 10 },
+      { id: 'cc-t3-tool',   type: 'tool',   label: 'Turn 3 · Write jgrep.py',  source: 'Write tool call + result',                 tokens: 180 },
+      { id: 'cc-t3-assist', type: 'assist', label: 'Turn 3 · Assistant',       source: 'Run instructions',                         tokens: 80 },
+    ],
+  },
+};
+
+const TYPE_LABELS = {
+  system: 'System', skill: 'Skill', memory: 'Memory', user: 'User',
+  assist: 'Assistant', tool: 'Tool', hook: 'Hook', workspace: 'Workspace',
+};
+function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function getContent(id) { const el = document.getElementById(id); return el ? el.textContent.trim() : '[content not found]'; }
+function fmtTokens(n) { return n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n); }
+function fmtNum(n) { return n.toLocaleString(); }
+function renderPreview(content) {
+  if (content.length <= 900) return escapeHtml(content);
+  return escapeHtml(content.slice(0, 400)) + '<span class="ellipsis">  · · · · · · · · · · · · · · · · · · · · · · · ·  </span>' + escapeHtml(content.slice(-400));
+}
+function renderBlock(block) {
+  const content = getContent(block.id);
+  const previewHtml = renderPreview(content);
+  const fullHtml = escapeHtml(content);
+  const el = document.createElement('div');
+  el.className = `block ${block.type}`;
+  el.dataset.state = 'collapsed';
+  el.innerHTML = `
+    <div class="block-header">
+      <span class="type-badge ${block.type}">${TYPE_LABELS[block.type]}</span>
+      <div>
+        <div class="block-label">${escapeHtml(block.label)}</div>
+        <span class="block-source">${escapeHtml(block.source)}</span>
+      </div>
+      <span class="tok"><span class="n">${fmtTokens(block.tokens)}</span> tok</span>
+      <span class="chev">▸</span>
+    </div>
+    <div class="block-body">
+      <pre class="preview">${previewHtml}</pre>
+      <pre class="full" style="display:none">${fullHtml}</pre>
+      <div class="block-actions">
+        <button class="btn primary toggle-full">Show full (${fmtNum(content.length)} chars)</button>
+        <button class="btn copy">Copy to clipboard</button>
+      </div>
+    </div>
+  `;
+  el.querySelector('.block-header').addEventListener('click', () => {
+    el.dataset.state = el.dataset.state === 'collapsed' ? 'preview' : 'collapsed';
+  });
+  el.querySelector('.toggle-full').addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const preview = el.querySelector('.preview');
+    const full    = el.querySelector('.full');
+    const btn     = ev.currentTarget;
+    if (full.style.display === 'none') {
+      preview.style.display = 'none'; full.style.display = 'block';
+      btn.textContent = 'Show preview'; el.dataset.state = 'full';
+    } else {
+      preview.style.display = 'block'; full.style.display = 'none';
+      btn.textContent = `Show full (${fmtNum(content.length)} chars)`; el.dataset.state = 'preview';
+    }
+  });
+  el.querySelector('.copy').addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(content);
+      const btn = ev.currentTarget; const old = btn.textContent;
+      btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = old, 1200);
+    } catch (e) { alert('Copy failed: ' + e.message); }
+  });
+  return el;
+}
+function renderBreakdown(tab) {
+  const totals = {};
+  tab.blocks.forEach(b => { totals[b.type] = (totals[b.type] || 0) + b.tokens; });
+  const order = ['system', 'workspace', 'tool', 'assist', 'memory', 'hook', 'user', 'skill'];
+  const max = Math.max(...Object.values(totals), 1);
+  const container = document.getElementById('breakdown');
+  container.innerHTML = '';
+  order.forEach(type => {
+    if (!totals[type]) return;
+    const card = document.createElement('div');
+    card.className = `bd-card ${type}`;
+    const pct = (totals[type] / max) * 100;
+    card.innerHTML = `<div class="label">${TYPE_LABELS[type]}</div><div class="value">${fmtTokens(totals[type])}</div><div class="minibar"><div class="minibar-fill" style="width:${pct}%"></div></div>`;
+    container.appendChild(card);
+  });
+}
+function renderTab(tabId) {
+  const tab = TABS[tabId]; if (!tab) return;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
+  document.getElementById('status-line').textContent = tab.statusText;
+  document.getElementById('title').innerHTML = `${escapeHtml(tab.title)}<span class="sub">${escapeHtml(tab.subtitle)}</span>`;
+  document.getElementById('meta-right').innerHTML = tab.meta.map(([k, v]) => `<div><span class="k">${escapeHtml(k)}:</span> ${escapeHtml(v)}</div>`).join('');
+  const pct = (tab.tokensUsed / tab.tokensLimit) * 100;
+  const remaining = tab.tokensLimit - tab.tokensUsed;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat used"><div class="v">~${fmtNum(tab.tokensUsed)}</div><div class="l">Tokens Used</div></div>
+    <div class="stat free"><div class="v">${fmtNum(remaining)}</div><div class="l">Remaining</div></div>
+    <div class="stat pct"><div class="v">${pct.toFixed(1)}%</div><div class="l">Capacity Used</div></div>
+    <div class="stat blocks"><div class="v">${tab.blocks.length}</div><div class="l">Content Blocks</div></div>
+    <div class="stat turns"><div class="v">${fmtNum(tab.tokensLimit)}</div><div class="l">Window Limit</div></div>
+  `;
+  document.getElementById('progress-label').textContent = `CONTEXT CAPACITY (${fmtNum(tab.tokensLimit)} TOKENS)`;
+  document.getElementById('progress-pct').textContent = pct.toFixed(1) + '%';
+  document.getElementById('progress-fill').style.width = '0%';
+  requestAnimationFrame(() => { document.getElementById('progress-fill').style.width = pct + '%'; });
+  document.getElementById('caption').innerHTML = escapeHtml(tab.caption);
+  document.getElementById('footer-note').innerHTML = tab.footer;
+  const blocksEl = document.getElementById('blocks');
+  blocksEl.innerHTML = '';
+  tab.blocks.forEach(b => blocksEl.appendChild(renderBlock(b)));
+  renderBreakdown(tab);
+  try { history.replaceState(null, '', '#' + tabId); } catch (_) {}
+}
+function collapseAll() { document.querySelectorAll('.block').forEach(el => el.dataset.state = 'collapsed'); }
+function previewAll() { document.querySelectorAll('.block').forEach(el => el.dataset.state = 'preview'); }
+const tabsEl = document.getElementById('tabs');
+Object.values(TABS).forEach(tab => {
+  const pct = ((tab.tokensUsed / tab.tokensLimit) * 100).toFixed(0);
+  const btn = document.createElement('button');
+  btn.className = 'tab'; btn.dataset.tab = tab.id;
+  btn.innerHTML = `<span class="tab-icon">${tab.icon}</span>${escapeHtml(tab.label)}<span class="tab-pct">${pct}%</span>`;
+  btn.addEventListener('click', () => renderTab(tab.id));
+  tabsEl.appendChild(btn);
+});
+const firstId = Object.keys(TABS)[0];
+const initial = (location.hash.replace('#', '') in TABS) ? location.hash.replace('#', '') : firstId;
+renderTab(initial);
+</script>
+</body>
+</html>
