@@ -25,6 +25,7 @@ This repo is a simple home for reusable agent skills that are useful outside any
 | `safe-gdocs` | [`skills/safe-gdocs`](./skills/safe-gdocs/) | Read-only Google Docs / Drive access for agents. Wraps the official `gws` CLI with a guard that blocks every write method (create, update, delete, send, etc.) and ships a friendly `gdocs read/search/list/info` wrapper. Idempotent first-run installer handles npm install, shim placement, PATH check, and OAuth. |
 | `site-archive` | [`skills/site-archive`](./skills/site-archive/) | Archives a site or URL into markdown while respecting `robots.txt`, randomizing delays, supporting incremental crawls, and detecting blocker pages |
 | `vuln-scan` | [`skills/vuln-scan`](./skills/vuln-scan/) | Per-file CTF-style vulnerability scanner: loops source files through `claude -p`, writes `*.vuln.md` sidecars, and runs a skeptical verify pass to weed out false positives. Profiles for WordPress, Node, and Python. |
+| `wp-screenshots` | [`skills/wp-screenshots`](./skills/wp-screenshots/) | Capture clean WordPress admin + front-end screenshots from a JSON brief. Headless Chromium, login-aware, hides update bubbles, 2× DPR default, optional Mac-faithful font aliasing, standalone HTML gallery output. |
 
 See [CATALOG.md](./CATALOG.md) for the short index.
 
