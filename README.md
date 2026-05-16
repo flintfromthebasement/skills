@@ -22,6 +22,9 @@ This repo is a simple home for reusable agent skills that are useful outside any
 
 | Skill | Path | What it does |
 | --- | --- | --- |
+| `context-window` | [`skills/context-window`](./skills/context-window/) | Generate a single-file HTML report visualizing what's in an LLM session's context window — system prompt, tool schemas, recall, hooks, conversation turns — color-coded by source type with token estimates. Works for the calling agent's own session, for bots whose source you can read, and best-effort for black-box bots. |
+| `lyric-video` | [`skills/lyric-video`](./skills/lyric-video/) | Combine an audio file, a video file, and lyrics into a subtitled music video. Accepts plain-text lyrics (auto-aligned via whisper word timestamps) or pre-timestamped LRC / TSV / JSON. Two-pass build (composite + faststart remux) so a crash in either step doesn't destroy the work. |
+| `read` | [`skills/read`](./skills/read/) | Fetch any web URL or YouTube video, cache it, and return content at three depth modes (skim / read / deep). Plus lightweight RSS/Atom feed subscriptions — subscribe, refresh, read by URL. Model-agnostic — the skill never calls an LLM, the calling agent does the synthesis. Caches to `~/data/read-cache/`, subscriptions at `~/data/feeds/`. |
 | `safe-gdocs` | [`skills/safe-gdocs`](./skills/safe-gdocs/) | Read-only Google Docs / Drive access for agents. Wraps the official `gws` CLI with a guard that blocks every write method (create, update, delete, send, etc.) and ships a friendly `gdocs read/search/list/info` wrapper. Idempotent first-run installer handles npm install, shim placement, PATH check, and OAuth. |
 | `site-archive` | [`skills/site-archive`](./skills/site-archive/) | Archives a site or URL into markdown while respecting `robots.txt`, randomizing delays, supporting incremental crawls, and detecting blocker pages |
 | `vuln-scan` | [`skills/vuln-scan`](./skills/vuln-scan/) | Per-file CTF-style vulnerability scanner: loops source files through `claude -p`, writes `*.vuln.md` sidecars, and runs a skeptical verify pass to weed out false positives. Profiles for WordPress, Node, and Python. |
@@ -38,26 +41,14 @@ See [CATALOG.md](./CATALOG.md) for the short index.
 ├── CATALOG.md
 ├── CONVENTIONS.md
 └── skills/
-    ├── safe-gdocs/
-    │   ├── SKILL.md
-    │   └── scripts/
-    │       ├── setup.sh
-    │       ├── gws-guard.sh
-    │       └── gdocs.sh
-    ├── site-archive/
-    │   ├── SKILL.md
-    │   ├── package.json
-    │   ├── package-lock.json
-    │   └── scripts/
-    │       ├── setup.sh
-    │       ├── crawl.mjs
-    │       └── detect-blockers.mjs
-    └── vuln-scan/
-        ├── SKILL.md
-        └── scripts/
-            ├── scan.sh
-            └── verify.sh
+    └── <skill-name>/
+        ├── SKILL.md         # frontmatter + usage docs (required)
+        ├── scripts/         # entry points + setup.sh (if any setup is needed)
+        ├── examples/        # smoke-test inputs (optional)
+        └── README.md        # only if SKILL.md isn't enough (optional)
 ```
+
+Each skill lives in its own folder under `skills/`. See [CONVENTIONS.md](./CONVENTIONS.md) for the install-receipt pattern and the required `setup.sh` contract for skills that need setup.
 
 ## Using a Skill
 
