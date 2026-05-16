@@ -1,6 +1,18 @@
 ---
 name: ytpoop
 description: Generate a short YouTube Poop-style chaotic absurdist video (~30-90s) entirely programmatically — PIL frames, NumPy-synthesized audio, ffmpeg assembly. No stock footage, no API calls, no external assets. Designed for an AI agent to write a custom one-off generator script per topic; ships with a runnable reference (`scripts/example.py`) and a documented technique catalog (BIOS boots, probability bars, glitch slices, scanlines, chiptune melodies, glitch bursts, etc.).
+license: MIT
+tags: [video, generation, ffmpeg, python, creative, multimedia]
+category: creative
+metadata:
+  version: "1.0.0"
+capabilities:
+  network: false
+  filesystem: readwrite
+  tools: [Bash, Read, Write]
+resources:
+  - path: scripts/example.py
+    type: reference
 ---
 
 # ytpoop
