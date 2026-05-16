@@ -26,6 +26,7 @@ This repo is a simple home for reusable agent skills that are useful outside any
 | `site-archive` | [`skills/site-archive`](./skills/site-archive/) | Archives a site or URL into markdown while respecting `robots.txt`, randomizing delays, supporting incremental crawls, and detecting blocker pages |
 | `vuln-scan` | [`skills/vuln-scan`](./skills/vuln-scan/) | Per-file CTF-style vulnerability scanner: loops source files through `claude -p`, writes `*.vuln.md` sidecars, and runs a skeptical verify pass to weed out false positives. Profiles for WordPress, Node, and Python. |
 | `wp-screenshots` | [`skills/wp-screenshots`](./skills/wp-screenshots/) | Capture clean WordPress admin + front-end screenshots from a JSON brief. Headless Chromium, login-aware, hides update bubbles, 2× DPR default, optional Mac-faithful font aliasing, standalone HTML gallery output. |
+| `ytpoop` | [`skills/ytpoop`](./skills/ytpoop/) | Generate a short YouTube Poop-style chaotic absurdist video entirely programmatically — PIL frames, NumPy synth audio, ffmpeg assembly. No external assets. Ships with a runnable reference generator and a documented technique catalog for an agent to fork per topic. |
 
 See [CATALOG.md](./CATALOG.md) for the short index.
 
