@@ -26,7 +26,7 @@ without delegation and compare.
 | Work | Why Codex |
 |------|-----------|
 | Well-spec'd implementation (clear diff to write, spec exists) | Efficient, steerable execution |
-| Token-hungry codebase analysis / investigation | Burns another vendor's tokens, reports a summary back |
+| Token-hungry codebase analysis / investigation | Keeps bulk context out of the session; reports a summary back. (Not free — Codex plans have real usage limits; route for fit, not cost dumping.) |
 | UI/UX verification (drive the flow, screenshot, compare against spec) | Strong at verification loops |
 | Independent second opinions on plans and PRs | Different vendor = genuinely independent read |
 | Data analysis, migrations, mechanical multi-file transforms | Bulk execution on a clear contract |
@@ -58,6 +58,11 @@ default — pick deliberately:
 
 Low is not a downgrade — GPT-5.x low is fast and smart enough for the whole
 routine-coding tier. Reserve `high`/`xhigh` for work where being wrong is expensive.
+
+Effort multiplies token spend, not per-token price — roughly 1x/2x/4x/8x for
+low/medium/high/xhigh, while capability gains flatten hard past medium. Codex usage
+is a bounded budget (business plans hit limits quickly), so one xhigh run costs about
+eight low runs of headroom — spend it where being wrong is expensive.
 
 ## Mechanics
 
