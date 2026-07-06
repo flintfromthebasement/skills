@@ -1,0 +1,178 @@
+<title>__SITE__ Alt Text Review</title>
+<style>
+  :root {
+    --bg: #FAF9F6; --surface: #FFFFFF; --ink: #22303C; --muted: #67737E;
+    --border: #E6E2D9; --imgbg: #F1EEE7;
+    --accent: #B45309; --accent-ink: #8A3E06;
+    --ok: #2E7D4F; --ok-bg: #E6F2EA;
+    --warn: #92400E; --warn-bg: #FBEEDD;
+    --new: #2F5D8A; --new-bg: #E7EEF5;
+    --tier1: #2F5D8A; --tier2: #6B5B95; --tier3: #67737E;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181D; --surface: #1D232B; --ink: #E7E5E0; --muted: #99A2AB;
+      --border: #2E3640; --imgbg: #262D36;
+      --accent: #E8973F; --accent-ink: #F0B26B;
+      --ok: #6FBF8F; --ok-bg: #22352A;
+      --warn: #E8B168; --warn-bg: #3A2E1D;
+      --new: #7FA9D0; --new-bg: #22303E;
+      --tier1: #7FA9D0; --tier2: #A79ACB; --tier3: #99A2AB;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #FAF9F6; --surface: #FFFFFF; --ink: #22303C; --muted: #67737E;
+    --border: #E6E2D9; --imgbg: #F1EEE7;
+    --accent: #B45309; --accent-ink: #8A3E06;
+    --ok: #2E7D4F; --ok-bg: #E6F2EA;
+    --warn: #92400E; --warn-bg: #FBEEDD;
+    --new: #2F5D8A; --new-bg: #E7EEF5;
+    --tier1: #2F5D8A; --tier2: #6B5B95; --tier3: #67737E;
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181D; --surface: #1D232B; --ink: #E7E5E0; --muted: #99A2AB;
+    --border: #2E3640; --imgbg: #262D36;
+    --accent: #E8973F; --accent-ink: #F0B26B;
+    --ok: #6FBF8F; --ok-bg: #22352A;
+    --warn: #E8B168; --warn-bg: #3A2E1D;
+    --new: #7FA9D0; --new-bg: #22303E;
+    --tier1: #7FA9D0; --tier2: #A79ACB; --tier3: #99A2AB;
+  }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0; padding: 40px 24px 80px;
+  }
+  main { max-width: 1160px; margin: 0 auto; }
+  .kicker {
+    font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent-ink); font-weight: 600; margin-bottom: 8px;
+  }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 10px; text-wrap: balance; letter-spacing: -.01em; }
+  .lede { color: var(--muted); max-width: 68ch; margin: 0 0 8px; }
+  .notice {
+    display: inline-block; margin: 10px 0 0; padding: 6px 12px; border-radius: 4px;
+    background: var(--warn-bg); color: var(--warn); font-weight: 600; font-size: 13px;
+  }
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px; margin: 32px 0 8px;
+  }
+  .stat {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 14px 16px;
+  }
+  .stat b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .stat span { font-size: 12.5px; color: var(--muted); }
+  h2 { font-size: 20px; margin: 52px 0 4px; letter-spacing: -.01em; }
+  .secdesc { color: var(--muted); margin: 0 0 18px; max-width: 75ch; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .imgwrap {
+    background: var(--imgbg); height: 190px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .imgwrap img { max-width: 100%; max-height: 190px; object-fit: contain; }
+  .noimg { color: var(--muted); font-size: 13px; }
+  .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .metarow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .chip {
+    font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 999px; background: var(--imgbg); color: var(--muted);
+  }
+  .chip.t-P1_content { color: var(--tier1); background: var(--new-bg); }
+  .chip.t-P2_featured { color: var(--tier2); background: var(--new-bg); }
+  .chip.ok { color: var(--ok); background: var(--ok-bg); }
+  .chip.warn { color: var(--warn); background: var(--warn-bg); }
+  .chip.new { color: var(--new); background: var(--new-bg); }
+  .fid { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .alt { margin: 0; font-size: 15px; line-height: 1.45; }
+  .file, .mono {
+    font: 12px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color: var(--muted); word-break: break-all;
+  }
+  .pages { font-size: 12.5px; color: var(--muted); }
+  .pages::before { content: "used on: "; color: var(--muted); font-weight: 600; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th {
+    text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); padding: 10px 14px; border-bottom: 1px solid var(--border);
+  }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .ptype { display: block; font-size: 11.5px; color: var(--muted); }
+  .alttd { max-width: 380px; }
+  .none { color: var(--muted); }
+  .next { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 18px 22px; margin-top: 48px; }
+  .next h2 { margin-top: 0; font-size: 17px; }
+  .next ol { margin: 8px 0 0; padding-left: 22px; }
+  .next li { margin-bottom: 6px; }
+  .next li::marker { color: var(--accent); font-weight: 600; }
+</style>
+<main>
+  <div class="kicker">__SITE__ · accessibility</div>
+  <h1>Media library alt text — proposed updates for review</h1>
+  <p class="lede">Every image below was read by Gemini Flash-Lite (via OpenRouter) using Maurice's
+  lifterlms.com pipeline: describe only what is visible, under 125 characters, screen-reader-first,
+  never invent brand names or screen text. Images the model could not fetch get an empty alt and a
+  flag instead of a guess.</p>
+  <span class="notice">Nothing has been written to the live site — this is a local preview.</span>
+
+  <div class="stats">
+    <div class="stat"><b>__TOTAL__</b><span>images in media library</span></div>
+    <div class="stat"><b>__MISSING__</b><span>missing alt text</span></div>
+    <div class="stat"><b>__GENDONE__</b><span>alts generated so far</span></div>
+    <div class="stat"><b>__COST__</b><span>API spend</span></div>
+    <div class="stat"><b>__FLAGGED__</b><span>flagged for human review</span></div>
+    <div class="stat"><b>__EXCLUDED__</b><span>private support uploads excluded</span></div>
+    <div class="stat"><b>__INPOST_TAGS__</b><span>in-post img tags missing alt (__INPOST_POSTS__ posts)</span></div>
+  </div>
+
+  <h2>Used in post content — __P1__ images (sample of 40)</h2>
+  <p class="secdesc">Highest priority: these render inside published posts, pages, docs, and add-on
+  pages. The media-library alt fixes featured and dynamically rendered uses immediately.</p>
+  <div class="grid">__CARDS_P1__</div>
+
+  <h2>Featured image only — __P2__ images (sample of 10)</h2>
+  <p class="secdesc">Set as a featured image on a published post but not embedded in any content.</p>
+  <div class="grid">__CARDS_P2__</div>
+
+  <h2>Orphaned — __P3__ images (sample of 30)</h2>
+  <p class="secdesc">Not detected on any published page. Cheap to fix anyway, and covers future
+  re-use of these images.</p>
+  <div class="grid">__CARDS_P3__</div>
+
+  <h2>Flagged for human review</h2>
+  <p class="secdesc">Fetch or model failures. Per the pipeline rules these get an empty alt, never a
+  guess. (Separately, __EXCLUDED__ images living in the access-protected support-ticket uploads
+  directory were excluded outright — private customer screenshots should not get AI alt text.)</p>
+  <div class="grid">__CARDS_FLAGGED__</div>
+
+  <h2>Phase 2 — in-post img tags missing alt</h2>
+  <p class="secdesc">These __INPOST_TAGS__ img tags are baked into published post HTML with a missing
+  or empty alt attribute, across __INPOST_POSTS__ posts. After the media library is updated, a
+  separate surgical pass rewrites only the alt attribute of these tags, pulling from the attachment's
+  media alt (existing or newly generated).</p>
+  <div class="tablewrap">
+    <table>
+      <tr><th>Post</th><th>Image</th><th>Alt source</th><th>Alt that would be applied</th></tr>
+      __INPOST_ROWS__
+    </table>
+  </div>
+
+  <div class="next">
+    <h2>Rollout plan (on your go-ahead — nothing runs without it)</h2>
+    <ol>
+      <li>Back up <code>wp_postmeta</code> on the live site.</li>
+      <li><b>Phase 1:</b> write <code>_wp_attachment_image_alt</code> only where currently empty —
+      staged 1 &rarr; 5 &rarr; full, verified at each gate (Maurice's apply_alt.php pattern).</li>
+      <li>Back up <code>wp_posts</code>.</li>
+      <li><b>Phase 2:</b> surgical in-post alt backfill on the __INPOST_POSTS__ affected posts —
+      per-tag rewrite, dry-run diff first, only the alt attribute changes.</li>
+    </ol>
+  </div>
+</main>
