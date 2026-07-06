@@ -4,6 +4,8 @@ Short index of public skills in this repo.
 
 | Skill | Location | Notes |
 | --- | --- | --- |
+| `analyze-video` | [`skills/analyze-video`](./skills/analyze-video/) | Analyze local videos or YouTube videos with a multimodal model — frame/UI/slide inspection, production critique, timestamped scene breakdowns. Gemini recommended (native video); OpenAI fallback via frame sampling + Whisper transcript. No npm deps. |
+| `audio-analysis` | [`skills/audio-analysis`](./skills/audio-analysis/) | Actually listen to audio files or YouTube audio — music/production feedback, track comparison, mystery-sound ID, Suno style-prompt extraction. Gemini recommended; OpenAI audio-input fallback. Renders waveform/spectrogram PNGs locally. No npm deps. |
 | `context-window` | [`skills/context-window`](./skills/context-window/) | Generate a single-file HTML report visualizing what's in an LLM session's context window — system prompt, tool schemas, recall, hooks, conversation turns — color-coded by source type with token estimates. Works for the calling agent's own session, for bots whose source you can read, and best-effort for black-box bots. |
 | `de-ai-design` | [`skills/de-ai-design`](./skills/de-ai-design/) | Audit an AI-generated design for the convergent "AI look" and replace each tell with a deliberate genre-based alternative. Grep-able tells catalog, audit-then-fix workflow, before/after verification. |
 | `lyric-video` | [`skills/lyric-video`](./skills/lyric-video/) | Combine an audio file, a video file, and timestamped lyrics (LRC / TSV / JSON) into a subtitled music video. Two-pass build (composite + faststart remux) so a crash in either step doesn't destroy the work. |
