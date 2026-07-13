@@ -44,25 +44,37 @@ without delegation and compare.
 **Escalation is standing permission:** if a Codex result doesn't meet the bar, redo it at
 higher effort or pull it back to Claude. Judge the output, not the price tag.
 
-## Reasoning Effort Routing
+## Model + Reasoning Effort Routing
+
+As of GPT-5.6, Codex ships model variants: a frontier variant (`gpt-5.6-sol`), a
+balanced one (`gpt-5.6-terra`), and a fast/cheap one (`gpt-5.6-luna`). Default the lane
+to the frontier variant; pass `-m gpt-5.6-luna` for purely mechanical bulk transforms
+where frontier reasoning is overkill. Otherwise don't override the model.
 
 Pass effort per call with `-c model_reasoning_effort=<level>`. Don't rely on the config
-default — pick deliberately:
+default — pick deliberately. GPT-5.6 is notably stronger at low effort than 5.5 was
+(OpenAI's own guidance: start lower, turn it up for harder jobs), so this table sits a
+rung lower than a 5.5-era one would:
 
 | Task | Effort |
 |------|--------|
 | Routine framework/CRUD coding, doc drafts | `low` |
-| Architecture, large refactors, infrastructure debugging | `medium` |
-| Security review, performance tuning, novel algorithms, research | `high` |
+| Architecture, large refactors | `low`, escalate to `medium` if the result misses |
+| Infrastructure debugging | `medium` |
+| Security review | `medium`–`high` |
+| Performance tuning, novel algorithms, research | `high` |
 | "I have no idea what's wrong" | `xhigh` |
+| `max` / `ultra` | **Off the menu by default** — `max` only after an `xhigh` run failed on a problem worth it; `ultra` (max + automatic task delegation) only when the user explicitly asks. |
 
-Low is not a downgrade — GPT-5.x low is fast and smart enough for the whole
-routine-coding tier. Reserve `high`/`xhigh` for work where being wrong is expensive.
+Low is not a downgrade — GPT-5.6 low covers the whole routine-coding tier and then some.
+Reserve `high`+ for work where being wrong is expensive.
 
-Effort multiplies token spend, not per-token price — roughly 1x/2x/4x/8x for
-low/medium/high/xhigh, while capability gains flatten hard past medium. Codex usage
+Effort multiplies token spend, not per-token price — roughly 1x/2x/4x/8x/16x for
+low/medium/high/xhigh/max, while capability gains flatten hard past medium. Codex usage
 is a bounded budget (business plans hit limits quickly), so one xhigh run costs about
-eight low runs of headroom — spend it where being wrong is expensive.
+eight low runs of headroom — spend it where being wrong is expensive. `ultra` spawns
+delegated subtasks on top of max reasoning, so its spend is open-ended — hence the
+explicit-ask gate.
 
 ## Mechanics
 
