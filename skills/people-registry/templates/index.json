@@ -1,0 +1,19 @@
+{
+  "_meta": {
+    "description": "People registry for entity resolution. Maps names/aliases to person identifiers with disambiguation hints.",
+    "updated": "YYYY-MM-DD",
+    "usage": "Load when a name is ambiguous. Match context against hints to resolve. See people/OPS-SNIPPET.md for the full agent contract."
+  },
+  "people": {
+    "primary-collaborator": {
+      "full_name": "Your Primary Human",
+      "aliases": ["Primary", "Boss", "Owner"],
+      "hints": ["founder", "owner", "primary", "admin"],
+      "context_file": null,
+      "verified_ids": {
+        "slack_email": "you@example.com"
+      },
+      "relationship": "Primary collaborator — replace this entry with a real person."
+    }
+  }
+}

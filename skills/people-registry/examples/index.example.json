@@ -1,0 +1,63 @@
+{
+  "_meta": {
+    "description": "FICTIONAL worked example — two people who share a first-name alias. Not real people. Copy patterns, not entries.",
+    "updated": "2026-07-16",
+    "usage": "Demonstrates alias collision + hint disambiguation. See references/name-resolution.md."
+  },
+  "people": {
+    "alex-rivera": {
+      "full_name": "Alex Rivera",
+      "aliases": ["Alex", "Alex R", "Rivera"],
+      "hints": ["founder", "owner", "primary", "admin"],
+      "context_file": null,
+      "verified_ids": {
+        "slack_email": "alex@example.com",
+        "slack_user_id": "U00OWNER1"
+      },
+      "relationship": "Primary collaborator — the human who runs this agent."
+    },
+    "sam-okonkwo": {
+      "full_name": "Sam Okonkwo",
+      "pronouns": "she/her",
+      "aliases": ["Sam", "Sam O"],
+      "hints": ["team", "support", "site audits", "colleague"],
+      "context_file": "people/sam-okonkwo.md",
+      "verified_ids": {
+        "slack_email": "sam@example.com",
+        "slack_user_id": "U00TEAM01"
+      },
+      "relationship": "Teammate on support. Goes by Sam only — never Samantha. Use she/her."
+    },
+    "sam-chen": {
+      "full_name": "Sam Chen",
+      "aliases": ["Sam", "Sammy", "S. Chen"],
+      "hints": ["friend", "climbing", "weekend", "non-work"],
+      "context_file": null,
+      "verified_ids": {},
+      "relationship": "Friend outside work. Climbs with Alex. Not on the team Slack."
+    },
+    "jordan-lee": {
+      "full_name": "Jordan Lee",
+      "aliases": ["Jordan", "Jordan L"],
+      "hints": ["lead dev", "team", "backend", "code review"],
+      "context_file": null,
+      "verified_ids": {
+        "slack_email": "jordan@example.com",
+        "slack_user_id": "U00DEV001",
+        "discord_id": "100000000000000001"
+      },
+      "relationship": "Lead developer. Closest engineering collaborator after Alex."
+    },
+    "auto-pat": {
+      "full_name": "AutoPat",
+      "aliases": ["AutoPat", "Pat-bot", "AP"],
+      "hints": ["agent", "Jordan's agent", "bot"],
+      "context_file": null,
+      "verified_ids": {
+        "discord_id": "100000000000000099"
+      },
+      "relationship": "AI agent built by Jordan Lee. NOT a human.",
+      "human": "jordan-lee"
+    }
+  }
+}
