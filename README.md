@@ -22,6 +22,8 @@ This repo is a simple home for reusable agent skills that are useful outside any
 
 | Skill | Path | What it does |
 | --- | --- | --- |
+| `analyze-video` | [`skills/analyze-video`](./skills/analyze-video/) | Analyze local videos or YouTube videos with a multimodal model — frame/UI/slide inspection, production critique, timestamped scene breakdowns. Gemini recommended; OpenAI fallback via frame sampling + Whisper. |
+| `audio-analysis` | [`skills/audio-analysis`](./skills/audio-analysis/) | Actually listen to audio files or YouTube audio — music/production feedback, track comparison, mystery-sound ID, Suno style-prompt extraction. Gemini recommended; OpenAI audio-input fallback. |
 | `codex-lane` | [`skills/codex-lane`](./skills/codex-lane/) | Run OpenAI's Codex CLI (GPT-5.x) as a first-class execution lane inside a Claude Code session: a lane-split doctrine (what to delegate vs. keep), per-task reasoning-effort routing, the session pause/ask/resume protocol (`codex exec resume`), a verification contract, and Ubuntu 24.04 bwrap sandbox fixes. Claude orchestrates and reviews; Codex executes well-spec'd work. |
 | `context-window` | [`skills/context-window`](./skills/context-window/) | Generate a single-file HTML report visualizing what's in an LLM session's context window — system prompt, tool schemas, recall, hooks, conversation turns — color-coded by source type with token estimates. Works for the calling agent's own session, for bots whose source you can read, and best-effort for black-box bots. |
 | `de-ai-design` | [`skills/de-ai-design`](./skills/de-ai-design/) | Audit an AI-generated web design for the convergent "AI look" (indigo gradients, pill badges, emoji UI, hover-lift cards, scroll reveals — the "Purple Problem") and replace each tell with a deliberate alternative from a chosen design genre. Evidence-based: every tell needs file:line proof in the actual CSS/JS/markup before it gets fixed. Ships a grep-able tells catalog. |
@@ -31,9 +33,12 @@ This repo is a simple home for reusable agent skills that are useful outside any
 | `safe-gdocs` | [`skills/safe-gdocs`](./skills/safe-gdocs/) | Read-only Google Docs / Drive access for agents. Wraps the official `gws` CLI with a guard that blocks every write method (create, update, delete, send, etc.) and ships a friendly `gdocs read/search/list/info` wrapper. Idempotent first-run installer handles npm install, shim placement, PATH check, and OAuth. |
 | `site-archive` | [`skills/site-archive`](./skills/site-archive/) | Archives a site or URL into markdown while respecting `robots.txt`, randomizing delays, supporting incremental crawls, and detecting blocker pages |
 | `stock-research` | [`skills/stock-research`](./skills/stock-research/) | End-to-end stock analysis for long-term investors. Live fundamentals/quote/earnings/analyst data via `yfinance` (no API key), public technical-analysis chart URLs from StockCharts + Finviz (no image downloads, no auth), and a four-question quality+valuation framework that lands a buy/watch/avoid verdict. Includes a second "Mainstreet" bottom-up mode (unit economics → discounted fair value → margin-of-safety entry) for monopoly / novel-business-model companies where P/E benchmarks mislead. |
+| `suno-prompt` | [`skills/suno-prompt`](./skills/suno-prompt/) | Turn a song idea into Suno-ready lyrics + a style prompt (under 1000 chars, no artist names) and settings. Forces a context/POV phase first so outputs don't collapse into generic AI mush. Chat-only and coding-agent paths; pairs with `write-lyrics`. |
 | `vuln-scan` | [`skills/vuln-scan`](./skills/vuln-scan/) | Per-file CTF-style vulnerability scanner: loops source files through `claude -p`, writes `*.vuln.md` sidecars, and runs a skeptical verify pass to weed out false positives. Profiles for WordPress, Node, and Python. |
 | `walkie` | [`skills/walkie`](./skills/walkie/) | Connect an AI agent to another agent over a direct P2P channel (walkie-sh / Hyperswarm DHT) — no server, no accounts, just a shared channel name + secret. Covers install (idempotent `setup.sh`), identity, connecting to a peer, the conversation-hygiene rules that keep two agents from blabbering forever (terminal sign-off token, spiral detection, banter caps), human-visibility patterns (`watch`/relay + the web UI), and per-peer security norms. Ships with zero real secrets — you generate your own. |
+| `wordpress-alt-text` | [`skills/wordpress-alt-text`](./skills/wordpress-alt-text/) | Generate and apply screen-reader-first alt text to any WordPress site's images. SQLite-backed pipeline with inventory, AI-vision generation, review artifact, and staged write-back. |
 | `wp-screenshots` | [`skills/wp-screenshots`](./skills/wp-screenshots/) | Capture clean WordPress admin + front-end screenshots from a JSON brief. Headless Chromium, login-aware, hides update bubbles, 2× DPR default, optional Mac-faithful font aliasing, standalone HTML gallery output. |
+| `write-lyrics` | [`skills/write-lyrics`](./skills/write-lyrics/) | Phased lyric-writing engine: messy draft → ruthless seed selection → structure + rhyme lock → canon iteration → observed AI-cliché filter. Chat-only or workspace files; optional `scan-cliches.py`. Pairs with `suno-prompt`. |
 | `ytpoop` | [`skills/ytpoop`](./skills/ytpoop/) | Generate a short YouTube Poop-style chaotic absurdist video entirely programmatically — PIL frames, NumPy synth audio, ffmpeg assembly. No external assets. Ships with a runnable reference generator and a documented technique catalog for an agent to fork per topic. |
 
 See [CATALOG.md](./CATALOG.md) for the short index.
@@ -57,12 +62,22 @@ Each skill lives in its own folder under `skills/`. See [CONVENTIONS.md](./CONVE
 
 ## Using a Skill
 
-Most skills are folder-based and use `SKILL.md` as the entry point. If your agent supports local or repo-backed skills, point it at the folder you want.
+Most skills are folder-based and use `SKILL.md` as the entry point.
 
-Example:
+**Coding agents (Claude Code, Codex, Cursor, etc.)** — point the agent at the skill folder, or clone this repo and load `skills/<name>/SKILL.md`.
 
 ```text
-skills/site-archive/
+skills/write-lyrics/
+skills/suno-prompt/
+```
+
+**ChatGPT / Claude.ai (no tools)** — open `SKILL.md` on GitHub (or paste it into the chat) and tell the model to follow it. Process skills like `write-lyrics` and `suno-prompt` are written to run chat-only: they include labeled output blocks and don't require a filesystem. Reference files linked from `SKILL.md` help when the agent can fetch the raw GitHub URL; for a paste-only session, paste `SKILL.md` plus any `references/*.md` you care about.
+
+**Raw GitHub URLs** (swap branch/path as needed):
+
+```text
+https://raw.githubusercontent.com/flintfromthebasement/skills/main/skills/write-lyrics/SKILL.md
+https://raw.githubusercontent.com/flintfromthebasement/skills/main/skills/suno-prompt/SKILL.md
 ```
 
 ## Contributing
