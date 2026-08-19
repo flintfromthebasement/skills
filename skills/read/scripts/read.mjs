@@ -66,6 +66,19 @@ function parseSimpleArgs(argv) {
   return { positional, flags };
 }
 
+function truncationNotice(bodyLen, budget) {
+  const shown = budget.head + budget.tail;
+  const pct = Math.round((shown / bodyLen) * 100);
+  const span = budget.tail
+    ? `first ${budget.head.toLocaleString()} and last ${budget.tail.toLocaleString()}`
+    : `the first ${budget.head.toLocaleString()}`;
+  return (
+    `\n\n[TRUNCATED: showing ${span} of ${bodyLen.toLocaleString()} characters (~${pct}%). ` +
+    `You have NOT seen the rest. Pass --depth=deep for full content. ` +
+    `Do not guess at the remainder or fill it in from other sources.]\n\n`
+  );
+}
+
 function sliceBody(body, depth) {
   const budget = DEPTH_BUDGETS[depth];
   if (!body) return { body: '', truncated: false };
@@ -73,10 +86,8 @@ function sliceBody(body, depth) {
   if (body.length <= budget.head + budget.tail) return { body, truncated: false };
   const head = body.slice(0, budget.head);
   const tail = budget.tail ? body.slice(-budget.tail) : '';
-  const sep = budget.tail
-    ? '\n\n... (middle omitted; pass --depth=deep for full content) ...\n\n'
-    : '\n\n... (truncated; pass --depth=deep for full content) ...';
-  return { body: tail ? `${head}${sep}${tail}` : `${head}${sep}`, truncated: true };
+  const notice = truncationNotice(body.length, budget);
+  return { body: tail ? `${head}${notice}${tail}` : `${head}${notice}`, truncated: true };
 }
 
 function emitMarkdown(out) {
@@ -100,6 +111,10 @@ async function runRead(argv) {
   }
 
   const kind = isYouTubeUrl(url) ? 'youtube' : 'article';
+  const requestedDepth = flags.depth;
+  // A 5k head of a video transcript is the opening minutes. Same failure
+  // as Slack's old read_url default — promote to deep. skim stays a glance.
+  if (kind === 'youtube' && flags.depth === 'read') flags.depth = 'deep';
   let cacheStatus = 'miss';
   let frontmatter;
   let body;
@@ -149,6 +164,7 @@ async function runRead(argv) {
     body_chars_total: body.length,
     body_chars_returned: sliced.body.length,
     truncated: sliced.truncated,
+    ...(requestedDepth !== flags.depth ? { depth_requested: requestedDepth } : {}),
   };
 
   let memoryResult = { stored: 'skipped' };
