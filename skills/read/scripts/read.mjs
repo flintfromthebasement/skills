@@ -112,9 +112,6 @@ async function runRead(argv) {
 
   const kind = isYouTubeUrl(url) ? 'youtube' : 'article';
   const requestedDepth = flags.depth;
-  // A 5k head of a video transcript is the opening minutes. Same failure
-  // as Slack's old read_url default — promote to deep. skim stays a glance.
-  if (kind === 'youtube' && flags.depth === 'read') flags.depth = 'deep';
   let cacheStatus = 'miss';
   let frontmatter;
   let body;
@@ -155,6 +152,10 @@ async function runRead(argv) {
     body = fetched.body;
     cacheStatus = flags.force ? 'refreshed' : 'fresh';
   }
+
+  // A 5k head of a long article or video is the opening, not the piece.
+  // Same failure as Slack's old read_url default — promote to deep. skim stays a glance.
+  if (flags.depth === 'read' && body.length > DEPTH_BUDGETS.read.head) flags.depth = 'deep';
 
   const sliced = sliceBody(body, flags.depth);
   const outFrontmatter = {

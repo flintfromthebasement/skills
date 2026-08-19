@@ -1,6 +1,6 @@
 ---
 name: read
-description: Fetch any web URL or YouTube video, cache the content, and return it at the requested depth (skim, read, deep). Default is deep (full content) — use it for any summary, review, or YouTube video. --depth=read is a 5k-char head for a quick article check only; YouTube reads are promoted to deep. Plus lightweight RSS/Atom feed subscriptions. Model-agnostic — the skill never calls an LLM, the calling agent does the synthesis.
+description: Fetch any web URL or YouTube video, cache the content, and return it at the requested depth (skim, read, deep). Default is deep (full content) — use it for any summary or review. --depth=read on anything longer than 5k (article or video) is promoted to deep so you never summarise from a head slice. skim is the only truncated mode. Plus lightweight RSS/Atom feed subscriptions. Model-agnostic — the skill never calls an LLM, the calling agent does the synthesis.
 ---
 
 # Read
@@ -71,7 +71,7 @@ node scripts/read.mjs https://flint.fountain.network/blog/2026-02-20-the-respond
 # JSON output (easier to parse from a calling agent)
 node scripts/read.mjs https://flint.fountain.network/blog/2026-02-20-the-respond-gap-why-autonomous-agents-have-no-panic-button/ --json
 
-# YouTube — always full transcript (even if you pass --depth=read)
+# YouTube — full transcript (long --depth=read promotes to deep)
 node scripts/read.mjs "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
@@ -110,10 +110,10 @@ The `--depth` flag controls how much content is returned to the calling agent. T
 | Depth | Returned content | Use for |
 |-------|------------------|---------|
 | `skim` | Title + first ~800 chars + last ~400 chars | Triage. Many URLs at once. Quick "is this worth reading?" |
-| `read` | Title + first ~5000 chars | Quick check of an **article**. Not for summaries, reviews, or YouTube. |
+| `read` | Full content (promoted to `deep` if over 5k) | One-off reads. Not a 5k head — a long article or video would lie. |
 | `deep` | Full content, no truncation | Default. Anything you will summarise, quote, review, or treat as the whole text. |
 
-**Default is `deep`.** Use it for any summarise / review / "watch this" request. `read` is a 5k-char head — enough to lie about a long video. YouTube URLs passed as `--depth=read` are auto-promoted to `deep` (`depth_requested` is recorded). `skim` stays a glance.
+**Default is `deep`.** Use it for any summarise / review / "watch this" request. `--depth=read` on a body longer than 5k chars (article or YouTube) is auto-promoted to `deep` (`depth_requested` is recorded). `skim` is the only mode that still slices.
 
 If the body is `truncated: true` or carries a `[TRUNCATED]` marker, you have **not** seen the rest. Say the summary covers only that portion. Do not guess at the remainder or fill it in from web search.
 
