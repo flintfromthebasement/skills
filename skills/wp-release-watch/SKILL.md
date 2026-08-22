@@ -40,7 +40,7 @@ hourly cron → poll /tags (GitHub API)
   → update state file
 ```
 
-Two design decisions worth understanding before you trust it:
+Three design decisions worth understanding before you trust it:
 
 **1. Diff-only analysis lies low.** WordPress core deliberately obscures
 security fixes — burying them inside refactors with vague commit messages so
@@ -53,6 +53,15 @@ rather than quietly rating it low.
 **2. The model call is a shell command, not an SDK.** The analyzer is whatever
 `ANALYZE_CMD` says — any harness or model that can read a prompt on stdin and
 write text to stdout. Swap models without touching code.
+
+**3. Unparseable output fails open.** If the analyzer's verdict can't be
+validated against the severity enum, the run notifies anyway and forces
+`NEEDS_HUMAN_REVIEW` — a parse hiccup can never silently suppress the alert.
+Required delivery (Slack webhook) failing also blocks the state file from
+advancing, so a transient outage retries next run instead of losing the alert.
+Attention pings are explicit: `PING=channel|here|none` decides whether alerts
+wake the whole channel — usually justified for core security, but it's a choice
+you make at setup, not a side effect.
 
 ## Setup
 
@@ -68,8 +77,9 @@ analyzer + notification path. Then baseline:
 
 ```bash
 scripts/wp-release-watch.sh --init   # record current latest tag, no alert
-scripts/wp-release-watch.sh --test 7.0.3 7.0.4   # force-analyze a known pair end-to-end
-scripts/wp-release-watch.sh --dry-run            # analyze next real release without notifying
+scripts/wp-release-watch.sh --test 7.0.3 7.0.4        # force-analyze, NO delivery (dry-run)
+scripts/wp-release-watch.sh --test 7.0.3 7.0.4 --post # analyze AND deliver (labeled test)
+scripts/wp-release-watch.sh --dry-run                 # analyze next real release without notifying
 ```
 
 Always run `--test` against a past security release before going live. It's the
@@ -80,21 +90,26 @@ expectations are wrong — while nothing is burning.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `REPO` | `WordPress/wordpress-develop` | Any `owner/repo` that tags releases. |
+| `REPO` | `WordPress/wordpress-develop` | Any `owner/repo` that tags releases. After changing it, re-run `--init`. |
 | `GH_TOKEN` | _(unset)_ | GitHub PAT. Strongly recommended. |
+| `TAG_PATTERN` | `^v?[0-9]+\.[0-9]+(\.[0-9]+)?$` | Which tags count as stable. Handles `1.2.3` and `v1.2.3`; adjust for date-based or 4-component schemes. |
 | `ANALYZE_CMD` | `claude -p` | Shell snippet; prompt arrives **on stdin**, verdict on stdout. Run via `bash -c`. |
 | `CONTEXT_CMD` | _(unset)_ | Optional. Receives a question on stdin, emits threat-intel text. E.g. a Perplexity/web-search CLI. Unset = diff-only analysis. |
-| `NOTIFY_CMD` | _(unset)_ | Optional. Message on stdin; env gets `VERSION`, `SEVERITY`, `SECURITY_RELEASE`, `REPORT_FILE`. |
-| `SLACK_WEBHOOK_URL` | _(unset)_ | Optional built-in Slack notify via incoming webhook. |
-| `NOTIFY_MIN_SEVERITY` | `none` | `none/low/medium/high/critical` — suppress pings below this (report is still written). |
-| `SCHEDULE` | `0 * * * *` | Cron schedule installed by setup.sh. |
-| `MAX_PATCH_CHARS` | `400000` | Patch budget fed to the model; oversized files are named and skipped. |
+| `NOTIFY_CMD` | _(unset)_ | Optional. Message on stdin; env gets `VERSION`, `SEVERITY`, `SECURITY_RELEASE`, `REPORT_FILE`. Best-effort. |
+| `SLACK_WEBHOOK_URL` | _(unset)_ | Optional built-in Slack notify via incoming webhook. **Required** delivery — failure retries next run. |
+| `NOTIFY_MIN_SEVERITY` | `none` | `none/low/medium/high/critical` — suppress pings below this (report is still written). Unparseable verdicts notify regardless. |
+| `PING` | `channel` | Attention ping prefix on delivered alerts: `channel` / `here` / `none`. |
+| `SCHEDULE` | `0 * * * *` | Cron schedule. After changing it: `bash scripts/setup.sh --cron`. |
+| `MAX_PATCH_CHARS` | `400000` | **Total** patch budget fed to the model; oversized files are named and skipped. |
+| `MAX_INTEL_CHARS` | `50000` | Cap on threat-intel text folded into the prompt. |
 
 ### Analyzer adapters
 
 The protocol: **prompt in on stdin, plain text out on stdout.** The model must
 reply in the exact structured format the prompt requests (severity header lines,
-then `---`, then a human-readable summary). Proven adapters:
+then `---`, then a human-readable summary) — no markdown bold, no color codes in
+the header values. These command shapes are transport-smoke-tested; verify your
+pick end-to-end against a real model with `--test OLD NEW` before trusting it:
 
 ```bash
 # Claude Code (headless). --disallowedTools Skill matters: bundled skills can
@@ -104,17 +119,29 @@ ANALYZE_CMD='claude -p --disallowedTools Skill'
 # pi (any provider/model your pi install has)
 ANALYZE_CMD='pi rk -p --no-tools'          # e.g. Kimi 3
 
-# OpenAI Codex CLI
-ANALYZE_CMD='codex exec --skip-git-repo-check "$(cat)"'
+# OpenAI Codex CLI — '-' reads the prompt from stdin (a single argv prompt
+# breaks on real diffs: Linux caps one argument at 128KB)
+ANALYZE_CMD='codex exec --skip-git-repo-check -'
 
 # Plain `llm` CLI
 ANALYZE_CMD='llm -m claude-sonnet'
 
-# Raw OpenAI-compatible API (jq + curl one-liner)
+# Raw OpenAI-compatible API (jq + curl one-liner; keep the key in config.env,
+# which is sourced with set -a — don't inline secrets into ANALYZE_CMD, it gets
+# written into every report)
 ANALYZE_CMD='jq -Rs "{model: \"gpt-5.6\", messages: [{role: \"user\", content: .}]}" \
-  | curl -s https://api.openai.com/v1/chat/completions -H "Auth..." -d @- \
+  | curl -s https://api.openai.com/v1/chat/completions -H "Authorization: Bearer $OPENAI_API_KEY" -d @- \
   | jq -r ".choices[0].message.content"'
 ```
+
+### Cron environment (read this once)
+
+Cron runs with a minimal `PATH` and no shell rc. The installer bakes an
+explicit `PATH` (including `~/.local/bin` and `~/.npm-global/bin`) into the
+crontab line, and `config.env` is sourced with `set -a` — so analyzer binaries
+found on your login PATH and any API keys defined in `config.env` both work
+under cron. If `--test` passes interactively but the log shows hourly analyzer
+failures at release time, this is the section you skipped.
 
 ### Notification adapters
 
@@ -148,5 +175,6 @@ Uninstall: remove the crontab line tagged `# wp-release-watch`, then
 ## Honest limits
 
 - **It reads diffs, not running sites.** Pair with fleet-level checks (wp-cli core version sweep) if you manage many installs.
-- **Severity is a model opinion shaped by a good prompt.** The structured format and the max-floor parsing keep it consistent; the human-review flag keeps it honest.
-- **One-shot analysis per release.** If threat intel lands days later (it does), re-run `--test OLD NEW` manually.
+- **Severity is a model opinion shaped by a good prompt.** The enum-validated parse and max-floor keep valid output consistent; unknown tokens escalate to human review instead of suppressing the alert.
+- **One-shot analysis per release.** If threat intel lands days later (it does), re-run `--test OLD NEW` manually. If two releases land between polls, only the newest is analyzed — the log calls out the gap so you can backfill with `--test`.
+- **GitHub caps compare responses** (~250 commits / 300 files). Truncated diffs are detected, flagged in the prompt, report, and delivery — and force human review.
