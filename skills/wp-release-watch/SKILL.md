@@ -31,12 +31,16 @@ live. The full story is on the blog; this is the reusable version.
 
 ```
 hourly cron → poll /tags (GitHub API)
-  → new stable tag? → fetch compare OLD...NEW
-  → [optional] gather threat intel (CONTEXT_CMD)
-  → build prompt (commit messages + unified patches)
-  → ANALYZE_CMD reads prompt on stdin, emits structured verdict
-  → parse SEVERITY / SECURITY_RELEASE / NEEDS_HUMAN_REVIEW
-  → write markdown report + notify (webhook / NOTIFY_CMD)
+  → new stable tag?
+      feature (X.Y / X.Y.0) and SCAN_FEATURE_RELEASES=no
+        → write informational report + notify ("didn't do a full scan")
+      point release (X.Y.Z, Z≥1), or SCAN_FEATURE_RELEASES=yes
+        → fetch compare OLD...NEW
+        → [optional] gather threat intel (CONTEXT_CMD)
+        → build prompt (commit messages + unified patches)
+        → ANALYZE_CMD reads prompt on stdin, emits structured verdict
+        → parse SEVERITY / SECURITY_RELEASE / NEEDS_HUMAN_REVIEW
+        → write markdown report + notify (webhook / NOTIFY_CMD)
   → update state file
 ```
 
@@ -99,6 +103,7 @@ expectations are wrong — while nothing is burning.
 | `SLACK_WEBHOOK_URL` | _(unset)_ | Optional built-in Slack notify via incoming webhook. **Required** delivery — failure retries next run. |
 | `NOTIFY_MIN_SEVERITY` | `none` | `none/low/medium/high/critical` — suppress pings below this (report is still written). Unparseable verdicts notify regardless. |
 | `PING` | `channel` | Attention ping prefix on delivered alerts: `channel` / `here` / `none`. |
+| `SCAN_FEATURE_RELEASES` | `no` | `yes` = LLM-scan X.Y / X.Y.0 feature tags (expensive, truncated diffs). Default `no`: still detect the tag, write a report, and notify *informationally* ("this is a major release, so I didn't do a full scan"). Point releases (`X.Y.Z` with Z≥1) always scan. |
 | `SCHEDULE` | `0 * * * *` | Cron schedule. After changing it: `bash scripts/setup.sh --cron`. |
 | `MAX_PATCH_CHARS` | `400000` | **Total** patch budget fed to the model; oversized files are named and skipped. |
 | `MAX_INTEL_CHARS` | `50000` | Cap on threat-intel text folded into the prompt. |
@@ -178,3 +183,4 @@ Uninstall: remove the crontab line tagged `# wp-release-watch`, then
 - **Severity is a model opinion shaped by a good prompt.** The enum-validated parse and max-floor keep valid output consistent; unknown tokens escalate to human review instead of suppressing the alert.
 - **One-shot analysis per release.** If threat intel lands days later (it does), re-run `--test OLD NEW` manually. If two releases land between polls, only the newest is analyzed — the log calls out the gap so you can backfill with `--test`.
 - **GitHub caps compare responses** (~250 commits / 300 files). Truncated diffs are detected, flagged in the prompt, report, and delivery — and force human review.
+- **Feature/major tags are not fully scanned by default.** WordPress (and similar projects) ship security as point releases on the previous branch first; the next X.Y then contains those same hunks on trunk. A GitHub compare across that cut is huge, often truncated, and will re-surface already-shipped CVEs. The watcher still notices the tag and says so. Set `SCAN_FEATURE_RELEASES=yes` if you really want the LLM pass; the prompt then tells the model not to raise severity from prior-branch CVEs.

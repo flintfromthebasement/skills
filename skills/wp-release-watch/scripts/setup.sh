@@ -112,6 +112,7 @@ ANALYZE_CMD="claude -p --disallowedTools Skill"
 # NOTIFY_CMD='mail -s "WP $VERSION: $SEVERITY" you@example.com'
 NOTIFY_MIN_SEVERITY="none"       # none|low|medium|high|critical
 PING="channel"                   # attention ping on delivered alerts: channel|here|none
+SCAN_FEATURE_RELEASES="no"       # yes = LLM-scan X.Y / X.Y.0 feature tags (expensive)
 
 # ── Cron ────────────────────────────────────────────────────────
 SCHEDULE="0 * * * *"
