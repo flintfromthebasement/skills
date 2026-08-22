@@ -91,7 +91,7 @@ expectations are wrong — while nothing is burning.
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `REPO` | `WordPress/wordpress-develop` | Any `owner/repo` that tags releases. After changing it, re-run `--init`. |
-| `GH_TOKEN` | _(unset)_ | GitHub PAT. Strongly recommended. |
+| `GH_TOKEN` | _(unset)_ | GitHub PAT. Strongly recommended. Leave the line commented (or omit it) if the token is already in the environment — `config.env` is sourced with `set -a`, so `GH_TOKEN=""` would clobber an inherited value. |
 | `TAG_PATTERN` | `^v?[0-9]+\.[0-9]+(\.[0-9]+)?$` | Which tags count as stable. Handles `1.2.3` and `v1.2.3`; adjust for date-based or 4-component schemes. |
 | `ANALYZE_CMD` | `claude -p` | Shell snippet; prompt arrives **on stdin**, verdict on stdout. Run via `bash -c`. |
 | `CONTEXT_CMD` | _(unset)_ | Optional. Receives a question on stdin, emits threat-intel text. E.g. a Perplexity/web-search CLI. Unset = diff-only analysis. |

@@ -89,7 +89,10 @@ else
 
 # ── What to watch ────────────────────────────────────────────────
 REPO="WordPress/wordpress-develop"
-GH_TOKEN=""                      # GitHub PAT — avoids the 60 req/hr anonymous limit
+# GH_TOKEN="ghp_..."             # GitHub PAT — avoids the 60 req/hr anonymous limit
+# Leave this line commented if GH_TOKEN is already in the environment.
+# config.env is sourced with `set -a`; an empty GH_TOKEN="" assignment
+# would clobber the inherited token.
 # TAG_PATTERN="^v?[0-9]+\.[0-9]+(\.[0-9]+)?$"   # adjust if tags look different
 
 # ── Analyzer (prompt on stdin → plain text on stdout) ───────────
