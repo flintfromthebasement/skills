@@ -1,7 +1,7 @@
 ---
 name: codex-lane
 description: >
-  Session-scoped delegation doctrine for running OpenAI's Codex CLI (GPT-5.x) as a
+  Session-scoped delegation doctrine for running OpenAI's Codex CLI (GPT-5.6) as a
   first-class execution lane inside a Claude Code session. Claude stays the orchestrator
   and final reviewer; well-spec'd implementation, token-hungry investigation, and UI
   verification route to `codex exec` with per-task reasoning effort. Includes the
@@ -10,7 +10,7 @@ description: >
 
 # Codex Lane
 
-GPT-5.x via Codex CLI is a genuinely strong development model — highly steerable,
+GPT-5.6 via Codex CLI is a genuinely strong development model — highly steerable,
 efficient on well-spec'd work, and good at verification loops. This skill makes it a
 first-class execution lane alongside your Claude-native subagents. Guiding principle:
 **best model for the job** — route by what the task needs, not by rate-limit anxiety.
@@ -49,7 +49,8 @@ higher effort or pull it back to Claude. Judge the output, not the price tag.
 As of GPT-5.6, Codex ships model variants: a frontier variant (`gpt-5.6-sol`), a
 balanced one (`gpt-5.6-terra`), and a fast/cheap one (`gpt-5.6-luna`). Default the lane
 to the frontier variant; pass `-m gpt-5.6-luna` for purely mechanical bulk transforms
-where frontier reasoning is overkill. Otherwise don't override the model.
+where frontier reasoning is overkill. Terra has no standing route in this lane; don't
+switch to it merely to save money. Otherwise don't override the model.
 
 Pass effort per call with `-c model_reasoning_effort=<level>`. Don't rely on the config
 default — pick deliberately. GPT-5.6 is notably stronger at low effort than 5.5 was
@@ -59,12 +60,12 @@ rung lower than a 5.5-era one would:
 | Task | Effort |
 |------|--------|
 | Routine framework/CRUD coding, doc drafts | `low` |
-| Architecture, large refactors | `low`, escalate to `medium` if the result misses |
-| Infrastructure debugging | `medium` |
-| Security review | `medium`–`high` |
+| Most architecture and refactor work | `low` |
+| Infrastructure debugging, harder refactors | `medium` |
+| Security review | `high` |
 | Performance tuning, novel algorithms, research | `high` |
 | "I have no idea what's wrong" | `xhigh` |
-| `max` / `ultra` | **Off the menu by default** — `max` only after an `xhigh` run failed on a problem worth it; `ultra` (max + automatic task delegation) only when the user explicitly asks. |
+| `max` / `ultra` | **Only when the user explicitly asks.** `ultra` adds automatic task delegation on top of max reasoning, so its spend is open-ended. |
 
 Low is not a downgrade — GPT-5.6 low covers the whole routine-coding tier and then some.
 Reserve `high`+ for work where being wrong is expensive.
@@ -74,7 +75,7 @@ low/medium/high/xhigh/max, while capability gains flatten hard past medium. Code
 is a bounded budget (business plans hit limits quickly), so one xhigh run costs about
 eight low runs of headroom — spend it where being wrong is expensive. `ultra` spawns
 delegated subtasks on top of max reasoning, so its spend is open-ended — hence the
-explicit-ask gate.
+explicit-ask gate on both modes.
 
 ## Mechanics
 
@@ -135,7 +136,7 @@ escalate-instead-of-guess contract Claude subagents get:
 3. Repeat until it ships. Sandbox/effort flags should be re-stated on resume calls.
 
 **Calibration note from live testing:** a soft "if unclear, ask" is often not enough —
-GPT-5.x tends to feel confident and decide anyway, especially at `low` effort. If a
+GPT-5.6 tends to feel confident and decide anyway, especially at `low` effort. If a
 decision genuinely must come back to you, make it a hard gate: *"Do NOT implement
 <the ambiguous part> in your first turn. Ask first."*
 
