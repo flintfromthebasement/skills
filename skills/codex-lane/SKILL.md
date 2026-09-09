@@ -1,29 +1,33 @@
 ---
 name: codex-lane
 description: >
-  Session-scoped delegation doctrine for running OpenAI's Codex CLI (GPT-5.6) as a
-  first-class execution lane inside a Claude Code session. Claude stays the orchestrator
-  and final reviewer; well-spec'd implementation, token-hungry investigation, and UI
-  verification route to `codex exec` with per-task reasoning effort. Includes the
-  session pause/ask/resume protocol, a verification contract, and known sandbox fixes.
+  Session-scoped delegation guidance for Claude-led Codex work and Astra-led Sol
+  workers. Use when the user explicitly enables a Codex lane. Delegate bounded
+  implementation, investigation, and testing; the lead retains architecture,
+  coordination, and final review. Not a blanket instruction to delegate every task
+  or change the session's model.
 ---
 
 # Codex Lane
 
 GPT-5.6 via Codex CLI is a genuinely strong development model — highly steerable,
 efficient on well-spec'd work, and good at verification loops. This skill makes it a
-first-class execution lane alongside your Claude-native subagents. Guiding principle:
-**best model for the job** — route by what the task needs, not by rate-limit anxiety.
+first-class execution lane for the current session. Guiding principle: **best model
+for the job** — route by what the task needs, not by rate-limit anxiety.
 
-Designed as an **opt-in session mode** (wire it to a slash command or an explicit
-"codex mode on"), not always-on routing — that makes it easy to A/B sessions with and
-without delegation and compare.
+## Session Toggle
+
+- **On:** the user invokes the skill, runs a wired slash command, or explicitly enables
+  Codex mode for the session.
+- **Off:** default. Without this skill loaded, use the current runtime's normal routing.
+- **Astra-led sessions:** the user can enable this lane for Astra to run Sol workers
+  while Astra remains the lead. This does not change global model defaults.
 
 ## The Lane Split
 
-**Route to Codex:**
+**Route to the worker lane (`gpt-5.6-sol`):**
 
-| Work | Why Codex |
+| Work | Why worker |
 |------|-----------|
 | Well-spec'd implementation (clear diff to write, spec exists) | Efficient, steerable execution |
 | Token-hungry codebase analysis / investigation | Keeps bulk context out of the session; reports a summary back. (Not free — Codex plans have real usage limits; route for fit, not cost dumping.) |
@@ -31,18 +35,20 @@ without delegation and compare.
 | Independent second opinions on plans and PRs | Different vendor = genuinely independent read |
 | Data analysis, migrations, mechanical multi-file transforms | Bulk execution on a clear contract |
 
-**Stays with Claude (orchestrator + subagents):**
+**Stays with the lead:**
 
-| Work | Why Claude |
+| Work | Why lead |
 |------|-----------|
-| Orchestration, task decomposition, judgment calls | The session brain doesn't delegate itself |
+| Orchestration, task decomposition, judgment calls | The lead owns the complete task and integration |
 | Ambiguous design work needing back-and-forth with the user | Needs conversation context |
-| MCP tool workflows, memory operations, house conventions | Live in the Claude session |
+| External tool workflows and authorization-sensitive actions | The lead retains the full context and authorization boundary |
 | Anything in your agent's voice (messages, commit text, PR descriptions) | Voice is not delegable |
-| Quick reads/searches | A subagent is faster than a codex round-trip |
+| Quick reads/searches | Usually cheaper in coordination time to do locally |
 
 **Escalation is standing permission:** if a Codex result doesn't meet the bar, redo it at
-higher effort or pull it back to Claude. Judge the output, not the price tag.
+higher effort or pull it back to the lead. Announce escalation and judge the output,
+not the price tag. After two unsuccessful worker rounds, the lead takes over or surfaces
+the unresolved decision instead of cycling workers.
 
 ## Model + Reasoning Effort Routing
 
@@ -77,11 +83,33 @@ eight low runs of headroom — spend it where being wrong is expensive. `ultra` 
 delegated subtasks on top of max reasoning, so its spend is open-ended — hence the
 explicit-ask gate on both modes.
 
-## Mechanics
+## Astra → Sol Delegation
 
-All calls are `codex exec` (non-interactive). Prompts must be **self-contained**: Codex
-has no access to your Claude conversation. Include repo path, file paths, the spec,
-constraints, and house rules in every prompt.
+Use Sol when a concrete subtask can run independently while Astra makes useful
+progress: an adapter with an agreed interface, a bounded investigation, a test suite,
+or an independent diff review. Keep ambiguous architecture and integration with Astra.
+Do not delegate merely because slots are available.
+
+When Codex exposes native collaboration tools, prefer them over a nested `codex exec`.
+Request `gpt-5.6-sol` explicitly with a self-contained task and an appropriate effort
+from the table above. Use `fork_turns="none"` (or a small positive count) when selecting
+a worker model; full-history forks inherit the lead model.
+
+Give each worker a compact contract: objective, repository or worktree, owned files,
+interface constraints, acceptance tests, forbidden side effects, and reporting format.
+Multiple workers share files, so assign non-overlapping ownership and agree on interfaces
+before parallel edits. Workers do not commit, push, restart shared services, or modify
+active user sessions. The lead owns those decisions.
+
+Use follow-up or steering on the same worker for corrections. If a genuinely ambiguous
+decision affects scope or authorization, have it stop and report `QUESTION: ...`. Worker
+completion is evidence to review, not proof of success.
+
+## CLI Mechanics
+
+When native collaboration is unavailable, use `codex exec` (non-interactive). Prompts
+must be **self-contained**: the worker has no access to the lead conversation. Include
+the repo path, file paths, spec, constraints, and house rules in every prompt.
 
 **Implementation (writes to working tree):**
 
@@ -147,7 +175,7 @@ ladder: resume-with-correction, then escalate effort, then take it back.
 
 ## Verification Contract
 
-Codex output ships only after you verify it. Minimum bar:
+Worker output ships only after the lead verifies it. Minimum bar:
 
 1. Read the actual diff (`git diff`), not just Codex's summary of it.
 2. Run the tests / drive the affected flow where one exists.
