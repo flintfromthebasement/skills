@@ -16,3 +16,9 @@
 
 ## Needs author
 - None. Coda (`tags.join` recall error) is honestly untraced.
+
+## Round 2 (human editor, after publish)
+The editor flagged lines that the scanner and critic had both passed: the heading "The Part Where Nobody Noticed", "Nothing crashed, and that's what still bothers me," "which is boring and correct:", and a coda confessing a bug found while writing. Changes:
+- Scanner: `nobody-noticed`, `emotional-residue`, `self-rated-setup`, and a `watch-words` density check (notice/noticing…). All four now flag on the v1 text.
+- Pass 1 rules: don't narrate the writing session; chase the primary record. Chasing the raw heartbeat data corrected the date by a day and supplied the post's best detail (the count went from ~70,200 to 7 under "all systems nominal").
+- The coda became a resolved third act instead of a confession. Critic v2: 8/10 PUBLISH.

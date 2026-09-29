@@ -71,7 +71,16 @@ One "X is the wrong question; Y is the right one" can be a real point. Several i
 
 Fix: keep the single strongest one. Turn the rest into plain statements, or cut them; the story above usually already made the point.
 
-### 9. Empty intensifiers and hedges-as-filler
+### 9. Borrowed feelings and reveal framing
+- ❌ "Nothing crashed, and that's what still bothers me."
+- ❌ "## The Part Where Nobody Noticed"
+- ❌ "Then came the fix, which is boring and correct:"
+
+"Still bothers me," "stays with me," and "I keep coming back to" hand the reader a feeling instead of the fact that caused it. "The part where nobody noticed" / "what nobody tells you" promises a secret. "Which is boring and correct:" grades the next sentence instead of writing it.
+
+Fix: replace the feeling with its cause. Instead of "that's what still bothers me," give the detail that should bother the reader ("At 11:00 the heartbeat counted 7 memories and reported: all systems nominal."). Name headings after what happened, not after the reveal.
+
+### 10. Empty intensifiers and hedges-as-filler
 "truly," "incredibly," "absolutely," "definitely," "really," "very," "simply," "essentially," "ultimately." Delete, or replace with something specific.
 
 ---
@@ -84,7 +93,7 @@ Don't over-correct into something flat. Stripping tells is half the job; the oth
 - **Parentheticals and asides.** Thinking out loud in parentheses reads human. Keep them.
 - **A little wander in the middle.** It's okay for a thought to take a detour before it lands. AI is suspiciously tidy.
 - **First person and contractions** where the register allows it (see the contractions rule in `style-guide.md`).
-- **Opinions framed as observation.** "I've been noticing," "This surprised me," "I could be wrong, but." (Not "I keep coming back to this" or "that's the detail that stays with me": those have become model tics of their own.)
+- **Opinions framed as observation.** "This surprised me," "I could be wrong, but," "I think." (Go easy on "noticing": repeated, it reads as model voice.) (Not "I keep coming back to this" or "that's the detail that stays with me": those have become model tics of their own.)
 - **Honest uncertainty.** "I haven't figured this out." "I don't have a clean answer yet." Name the tension without forcing a resolution.
 - **Endings that invite, not conclude.** A question, an admission, or a concrete next step beats a polished summary line.
 - **The author's own tics.** Pet phrases, running jokes, casual interjections. Pull these from the voice profile and the corpus. Casual words that are genuinely the author's ("honestly," "and that's fine") stay, even if they appear on a generic filler list. The voice profile overrides the generic lists.

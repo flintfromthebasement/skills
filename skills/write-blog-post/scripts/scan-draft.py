@@ -38,6 +38,9 @@ PATTERNS = [
     ("not-the-x-the-y", r"(?:^|[.!?]\s+)Not (?:the|a|an|just|your|my|our) [^.!?\n]{1,40}\.\s+(?:The|A|An|Your|My|Our|Just)\b[^.!?\n]{1,40}[.!]", "Not the X. The Y."),
     ("not-a-thought-experiment", r"\b(?:this|that|it) (?:is not|isn'?t) (?:a|an|just a) (?:thought experiment|hypothetical|drill|coincidence)\b", "This is not a thought experiment"),
     ("keep-coming-back", r"\bI keep coming back to\b|\bthe (?:detail|thing|part) I keep coming back to\b", "I keep coming back to (model tic)"),
+    ("nobody-noticed", r"\b(?:nobody|no one|no-one) (?:noticed|talks? about|tells you|warns you|mentions)\b|\bthe part (?:where|that|nobody)\b", "nobody noticed / the part where (reveal framing)"),
+    ("emotional-residue", r"\b(?:still|really|quietly) (?:bothers|haunts|nags at|gets to) me\b|\b(?:stays|stuck|sticks) with me\b|\bcan'?t stop thinking about\b|\bkeeps? me up at night\b|\bwhat (?:still )?(?:bothers|haunts) me\b", "still bothers me / stays with me (emotional-residue tic)"),
+    ("self-rated-setup", r",\s*which (?:is|was|are|were) (?:\w+ly )?\w+ and \w+\s*:", "announces the tone of what follows ('which is boring and correct:')"),
     ("isnt-about", r"\b(?:isn'?t|is not|wasn'?t|was not)\s+(?:really\s+)?about\b[^.!?\n]{1,60}[,;.]\s*(?:it'?s|it is)\s+about\b", "X isn't about Y, it's about Z"),
     ("not-just", r"\bnot (?:just|only|merely)\b[^.!?\n]{1,60}\bbut\b", "not just X, but Y"),
     ("no-chain", r"\b[Nn]o \w+(?:[,;]\s*| or | and )no \w+", "No X, no Y chain"),
@@ -86,6 +89,9 @@ INTENSIFIERS = [
     "truly", "incredibly", "absolutely", "definitely", "really", "very", "simply",
     "essentially", "ultimately", "basically", "literally", "extremely",
 ]
+
+# Words that read as model voice when repeated (flag at 2+ per post).
+WATCH_WORDS = ["notice", "noticed", "noticing", "resonate", "resonates", "journey", "honestly"]
 
 SKIP_OPENERS = {"the", "a", "an"}
 
@@ -249,6 +255,20 @@ def scan(text: str, ban: list[str], allow: set[str]) -> dict:
     heavy = {w: c for w, c in intens.items() if c >= 3}
     if heavy:
         add("intensifiers", 0, ", ".join(f"{w} x{c}" for w, c in sorted(heavy.items(), key=lambda x: -x[1])), "empty intensifiers used 3+ times")
+    watch = {}
+    for _, para in paras:
+        for w in WATCH_WORDS:
+            if w in allow:
+                continue
+            c = len(re.findall(rf"\b{w}\b", para, re.I))
+            if c:
+                watch[w] = watch.get(w, 0) + c
+    stems = {}
+    for w, c in watch.items():
+        stems[w[:6]] = stems.get(w[:6], 0) + c
+    rep = {k: v for k, v in stems.items() if v >= 2}
+    if rep:
+        add("watch-words", 0, ", ".join(f"{k}* x{v}" for k, v in rep.items()), "model-voice words used 2+ times (notice/noticing, resonate, journey...)")
     head = " ".join(p for _, p in paras[:1])[:300].lower()
     if head.startswith("in this post") or head.startswith("in this article"):
         add("in-this-post-opener", paras[0][0], head[:80], "hook first, then promise")

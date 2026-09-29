@@ -40,6 +40,9 @@ Used by Pass 4 (de-fingerprint scrub) and Pass 6 (critic review) in `write-blog-
 | `heres-the-twist` | “Here’s the twist / thing / catch / kicker” | Stage-managed reveal. |
 | `x-is-dead` | “X is dead” / “long live …” | Obituary headline + sequel. |
 | `thats-why-mattered` | “That’s why X mattered” | Retroactive significance assignment. |
+| `nobody-noticed` | “Nobody noticed / the part where …” | “The Part Where Nobody Noticed,” “what nobody tells you,” “the part nobody talks about.” Reveal framing that promises a secret; also a heading tell. |
+| `emotional-residue` | “Still bothers me” | “that’s what still bothers me,” “it stays with me,” “I can’t stop thinking about,” “keeps me up at night.” Borrowed feeling in place of a stated consequence; a cousin of “sit with that.” |
+| `self-rated-setup` | Announcing the tone | “…, which is boring and correct:” “…, which is simple and brutal:” Rating the next sentence instead of writing it. |
 | `stranded-auxiliary` | Stranded auxiliary contrast | “The tool died; the data didn’t.” Bare auxiliary reversal. |
 
 Also watch (from replies / related lists, not always in the 38):

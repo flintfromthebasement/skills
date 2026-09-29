@@ -153,6 +153,8 @@ Log what each pass changed in `editorial-notes.md` (or a short running list in c
 - **No invented inner lives.** Claims about what someone else thought, felt, or noticed ("he didn't think the graph was gone") need a source, same as a stat. So do claims about the author's own past state of mind that aren't in the record.
 - **Case studies and customer stories:** every result and quote traces to the customer. No invented outcomes.
 - **Promise kept.** Does the body deliver what the intro promised? Does the post say something the reader couldn't get from the first search result?
+- **Don't narrate the writing session.** "While I was researching this post, X broke" is a confession, not a story beat. If something you found while writing belongs in the post, run it down first, then tell it as part of the story's own timeline. If you can't resolve it, leave it out and tell the user instead.
+- **Chase the primary record.** Journals, summaries, and memories get dates and numbers wrong. Where raw data exists (logs, metrics, timestamps, heartbeats), check the story against it. The raw data often holds the best detail in the post, too.
 - **Cut what doesn't earn its place:** sections that restate earlier ones, integration lists that should be one example plus a link, generic FAQs nobody actually asks.
 - **One primary CTA.** Demote extras to one supporting sentence.
 - **Is anything outdated?** Product names, features, prices, versions.
