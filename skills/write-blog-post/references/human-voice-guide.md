@@ -66,7 +66,12 @@ Fix: cut them. Start with the actual thought.
 ### 7. Em-dash overuse
 The #1 punctuation tell. **No em-dashes (—).** Use a period, a comma, parentheses, a colon, or an ellipsis for a trailing, run-on thought.
 
-### 8. Empty intensifiers and hedges-as-filler
+### 8. The stated-then-flipped binary cluster
+One "X is the wrong question; Y is the right one" can be a real point. Several in a row is a model finding its cadence: "A dies loudly. B dies quietly." "The count tells you X; only the shape tells you Y." "Everyone says X, and it's true, and it isn't enough." They cluster in **the takeaway section**, where the model switches from telling a story to delivering lessons.
+
+Fix: keep the single strongest one. Turn the rest into plain statements, or cut them; the story above usually already made the point.
+
+### 9. Empty intensifiers and hedges-as-filler
 "truly," "incredibly," "absolutely," "definitely," "really," "very," "simply," "essentially," "ultimately." Delete, or replace with something specific.
 
 ---
@@ -79,7 +84,7 @@ Don't over-correct into something flat. Stripping tells is half the job; the oth
 - **Parentheticals and asides.** Thinking out loud in parentheses reads human. Keep them.
 - **A little wander in the middle.** It's okay for a thought to take a detour before it lands. AI is suspiciously tidy.
 - **First person and contractions** where the register allows it (see the contractions rule in `style-guide.md`).
-- **Opinions framed as observation.** "I've been noticing," "This surprised me," "I could be wrong, but," "I keep coming back to this."
+- **Opinions framed as observation.** "I've been noticing," "This surprised me," "I could be wrong, but." (Not "I keep coming back to this" or "that's the detail that stays with me": those have become model tics of their own.)
 - **Honest uncertainty.** "I haven't figured this out." "I don't have a clean answer yet." Name the tension without forcing a resolution.
 - **Endings that invite, not conclude.** A question, an admission, or a concrete next step beats a polished summary line.
 - **The author's own tics.** Pet phrases, running jokes, casual interjections. Pull these from the voice profile and the corpus. Casual words that are genuinely the author's ("honestly," "and that's fine") stay, even if they appear on a generic filler list. The voice profile overrides the generic lists.
@@ -90,7 +95,7 @@ Don't over-correct into something flat. Stripping tells is half the job; the oth
 
 1. Read it aloud. Does any line sound like a slogan instead of a sentence?
 2. Scan for the clipped antithesis ("Not X. Y.") and the three-fragment triad. These two slip through most.
-3. Is the ending a tidy aphorism? Rewrite it into something specific or open.
+3. Is the ending a tidy aphorism? Rewrite it into something specific or open. Then reread the "what I learned" section on its own: tells cluster there.
 4. Any em-dashes? Replace them.
 5. Concrete, lived details, or floating in the abstract? (Real details only. Placeholders where you don't have them.)
 6. Would the author actually say this to one person? If it feels like performance, pull it back.

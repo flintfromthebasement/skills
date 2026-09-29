@@ -42,11 +42,13 @@ Load these at Phase 2. They're the rules the passes enforce.
 
 The generic guides only tell the model what *not* to sound like. To sound like a specific person, you need the person.
 
-Look for, in the project folder:
+Look for, in the project folder (or wherever the user keeps a shared voice for this author, e.g. `~/.config/write-blog-post/voices/<author>/`; one author's voice usually outlives any one post, so a shared location beats copying it per project):
 
 - `voice/voice.md` or `blog-voice.md`: the voice profile (author, target reader, tics, never-list, style overrides)
 - `voice/corpus/*.md`: 3+ real posts by the author
 - `voice/banned.txt`: extra banned phrases for the scanner
+
+The blog may already have an editorial or style doc of its own (an `editorial.md`, a brand voice page). Read it and fold it into the profile rather than starting from scratch.
 
 **If they exist,** move on.
 
@@ -89,7 +91,8 @@ Before writing or editing a line:
 1. Read the reference files above.
 2. Read the voice profile (if any).
 3. **Read 2-3 corpus posts closest to this one** in topic and type (a how-to next to other how-tos, a personal essay next to other personal essays). Weight newer posts heavier. Note: how they open, paragraph rhythm, how they address the reader, heading style, how they close, pet phrases.
-4. **Edit / Rewrite / Revision modes:** diff the existing draft against the corpus. List where it diverges on word choice, AI tells, sentence-length monotony, voice (passive, "users" instead of "you," "let's explore" filler), and structure the corpus uses that the draft lacks. These findings feed the edit plan.
+4. **Scan the corpus for tells before you trust it.** Run `scan-draft.py` over the corpus posts (or eyeball them against the guides). If the author's archive was itself AI-assisted, it carries AI habits (em-dashes, "worth sitting with," clipped antitheses), and calibrating to it teaches you to copy them. Take the voice from the corpus (openings, rhythm, humor, pet phrases), not its tells. Recurring tells go into the voice profile's **Never** list and `voice/banned.txt`. Prefer posts the author visibly edited by hand.
+5. **Edit / Rewrite / Revision modes:** diff the existing draft against the corpus. List where it diverges on word choice, AI tells, sentence-length monotony, voice (passive, "users" instead of "you," "let's explore" filler), and structure the corpus uses that the draft lacks. These findings feed the edit plan.
 
 Skipping this phase is the single most common cause of voice drift. Don't.
 
@@ -106,6 +109,8 @@ Runs in Draft, Outline-fill, and (after the plan is approved) Rewrite.
    - `[DETAIL: a real example from the author about X]`
    - `[LINK: what this should link to]`
    - `[IMAGE: what this should show]`
+
+   This includes **plausible-sounding specifics** ("field 7," "a 40% drop," "the Tuesday deploy") that you reach for to make a sentence concrete. If it isn't in the sources, it's invented, even when it's illustrative.
 
    A placeholder costs the author thirty seconds. A fabricated anecdote in their voice costs them credibility.
 
@@ -135,6 +140,8 @@ The core of the skill. Run all six, **in order**, on the full draft. Each pass h
 
 **Ground rule for every pass after Pass 1:** style passes never add claims, facts, or examples. They change how things are said, not what is said. If a pass wants new substance, it leaves a placeholder or a note.
 
+**They will anyway, so check.** Rewriting a tell usually means writing a new sentence, and new sentences smuggle in new claims ("I'd spent May worrying about the wrong one" is a mic-drop fix that invents a state of mind). After Passes 3-5, re-run the Pass 1 claims check on every sentence those passes changed. Also watch for a claim you cut in Pass 1 reappearing in a later paragraph in different words.
+
 Log what each pass changed in `editorial-notes.md` (or a short running list in chat). One line per meaningful change is enough.
 
 ### Pass 1: Substance and Honesty
@@ -143,6 +150,7 @@ Log what each pass changed in `editorial-notes.md` (or a short running list in c
 
 - **Every statistic, quote, and factual claim** traces to a named source, the provided material, or the author's own experience. "Studies show," "experts agree," and aggregator-of-aggregator stats get a real citation or get cut. If you can't source it, cut the sentence; most sections are stronger without the unsourced number.
 - **No fabricated links.** Every URL came from the user, the sources, or a tool result.
+- **No invented inner lives.** Claims about what someone else thought, felt, or noticed ("he didn't think the graph was gone") need a source, same as a stat. So do claims about the author's own past state of mind that aren't in the record.
 - **Case studies and customer stories:** every result and quote traces to the customer. No invented outcomes.
 - **Promise kept.** Does the body deliver what the intro promised? Does the post say something the reader couldn't get from the first search result?
 - **Cut what doesn't earn its place:** sections that restate earlier ones, integration lists that should be one example plus a link, generic FAQs nobody actually asks.
@@ -170,6 +178,7 @@ Log what each pass changed in `editorial-notes.md` (or a short running list in c
 - Real specifics over abstractions. **Only real ones.** Placeholders for anything you'd have to make up.
 - Endings invite or point somewhere (a real question, an admission, a next step) instead of concluding with a fortune cookie.
 - Read it aloud (or simulate it). Anything that sounds like a slogan, a caption, or a keynote gets pulled back.
+- **Read the takeaway section last and hardest.** Narrative sections stay honest because they're tied to what happened; the "what I think" section is where a model shifts into delivering lessons, and the antitheses, binaries, and keynote cadence pile up there. Watch the heading too: "What I Actually Think" is performative honesty in heading form. Name the claim instead.
 
 ### Pass 4: De-AI Scrub
 
@@ -187,6 +196,8 @@ Then run the scanner if you can:
 ```bash
 python3 scripts/scan-draft.py blog-post.md --ban voice/banned.txt
 ```
+
+**A clean scan is the floor, not the finish.** Regexes miss tells in new clothes: an antithesis without the usual connective ("Not the count. The shape."), a mic-drop that doesn't use "is," a vague closer ("I had the whole thing backwards" about what?). After the scan, reread the last line of every section and every one-sentence paragraph by hand; that's where tidy closers hide.
 
 Fix or consciously keep every flag. Kept flags get a one-line reason in the notes (e.g., "'honestly' is the author's real tic, per voice profile"). `--allow <id-or-word>` silences an accepted pattern. `examples/sloppy-draft.md` is a smoke test that should light up with ~19 flags.
 
@@ -209,7 +220,8 @@ Fix or consciously keep every flag. Kept flags get a one-line reason in the note
 
 - **Run it in a fresh context if your environment allows** (a subagent, a new session, ideally a different model). Give the critic only the brief, the voice profile, and the draft. The model that wrote the post is a soft grader of its own work.
 - Score seven dimensions (interest, title/hook, self-indulgence, structure, shareability, voice, accuracy). Verdict: **PUBLISH**, **REVISE**, or **KILL**. Accuracy under 8 forces REVISE on its own.
-- **REVISE:** apply the revision notes, then re-run Passes 3-5 on the changed sections only, then re-score. **Max two revise loops.** If it's still REVISE after two, stop and hand the author the scorecard and the remaining notes; the missing ingredient is usually something only they have (a real story, a real number, a sharper opinion).
+- **Critic notes are suggestions, checked against the house rules.** The critic can misapply a rule (for example, "normalize headings to sentence case" when the style guide says labels take Title Case). Check each note against the style guide and voice profile before applying it, and log any you reject, with the reason.
+- **REVISE:** apply the revision notes, re-run the Pass 1 claims check on every sentence you changed (critic-suggested rewrites introduce claims too), re-run Passes 3-5 on the changed sections, then re-score. If you can, send loop 2 back to the **same** critic, so it can check that its notes were actually addressed rather than starting over. **Max two revise loops.** If it's still REVISE after two, stop and hand the author the scorecard and the remaining notes; the missing ingredient is usually something only they have (a real story, a real number, a sharper opinion).
 - **KILL:** don't polish it. Tell the user, and say what could be salvaged as a different piece.
 
 ---
@@ -222,6 +234,10 @@ Fix or consciously keep every flag. Kept flags get a one-line reason in the note
 - `editorial-notes.md`: mode, corpus posts used, what each pass changed (short), scanner summary with any kept flags and why, the critic scorecard, **open decisions**, and **every placeholder** that needs the author.
 
 Edit and Rewrite modes edit `blog-post.md` in place.
+
+**Publishing handoff.** The brief is internal: strip it (everything through `## Post Content`) before the post goes to a platform. Converting to the platform's format (MDX frontmatter, CMS blocks) is the publisher's job, but re-run `scan-draft.py` on the final converted file, since conversion is where em-dashes and smart-quote debris sneak back in. If the platform has its own pre-publish checks (link checker, secrets/OPSEC scan), those run too; they catch things this skill doesn't look for.
+
+**Publish from the source of truth.** Before publishing, confirm the checkout you're publishing from is current. If other jobs or machines also publish to this blog, a stale copy of the content directory plus a deploy that syncs with delete will quietly remove every newer post. Fetch first. If a push is rejected as non-fast-forward, stop and find out why; don't force it.
 
 Then post a short chat summary: the verdict and score, the 2-3 most important changes, the placeholders that need the author, and the open decisions. Don't paste the whole post into chat unless asked.
 
