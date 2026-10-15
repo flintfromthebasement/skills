@@ -230,7 +230,7 @@ log "merge of $TARGET_TAG started: $MERGE_STATE${CONFLICTS:+ ($(wc -l <<<"$CONFL
 UPSTREAM_STAT=$( [[ -n "$PREV_TAG" ]] && git -C "$REPO" diff --stat "$PREV_TAG" "$TARGET_TAG" | tail -60 || echo "(first import, no previous tag)")
 README_DIFF=$( [[ -n "$PREV_TAG" ]] && git -C "$REPO" diff "$PREV_TAG" "$TARGET_TAG" -- readme.txt README.md 2>/dev/null | head -200 || true)
 
-PROMPT_FILE="$SYNC_WT/.wporg-fork-watch-prompt.md"
+PROMPT_FILE="$LOG_DIR/$NAME-$TARGET-prompt.md"
 cat > "$PROMPT_FILE" <<EOF
 You are porting a new upstream release of the WordPress.org plugin \`$SLUG\` into this fork.
 
@@ -312,7 +312,7 @@ fi
 git -C "$SYNC_WT" push --quiet -u "$PUSH_REMOTE" "$SYNC_BRANCH" || die "push of $SYNC_BRANCH to $PUSH_REMOTE failed"
 PUSHED=1
 gh label create "$PR_LABEL" --repo "$PR_REPO" --color 0E8A16 --description "Upstream release port" >/dev/null 2>&1 || true
-PR_BODY="$SYNC_WT/.pr-body.md"
+PR_BODY="$LOG_DIR/$NAME-$TARGET-pr-body.md"
 { cat "$SYNC_WT/SYNC_SUMMARY.md"; printf '\n\n---\nUpstream: `%s/%s/tags/%s` → tag `%s`. Opened by wporg-fork-watch.\n\n%s\n' "$SVN_BASE" "$SLUG" "$TARGET" "$TARGET_TAG" "$PR_FOOTER"; } > "$PR_BODY"
 PR_URL=$(gh pr create --repo "$PR_REPO" --base "$BASE_BRANCH" --head "${PR_HEAD_PREFIX}${SYNC_BRANCH}" \
   --title "Sync $UPSTREAM_NAME $TARGET" --body-file "$PR_BODY" --label "$PR_LABEL" 2>&1) || die "gh pr create failed: $PR_URL"
@@ -324,7 +324,7 @@ PR_NUMBER="${PR_URL##*/}"
 # ---- review ----
 REVIEW_LINE="review skipped"
 if [[ "$REVIEW_CMD" == "builtin" ]]; then
-  REVIEW_PROMPT="$SYNC_WT/.review-prompt.md"
+  REVIEW_PROMPT="$LOG_DIR/$NAME-$TARGET-review-prompt.md"
   {
     printf 'Review pull request %s, which ports %s %s into a fork. Judge it against this fork policy:\n\n' "$PR_URL" "$UPSTREAM_NAME" "$TARGET"
     cat "$POLICY_FILE"
