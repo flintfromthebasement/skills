@@ -52,7 +52,7 @@ done
 [[ -n "$NAME" || -n "$CONFIG" ]] || { echo "usage: wporg-fork-watch.sh <name> [--dry-run]" >&2; exit 2; }
 [[ -n "$CONFIG" ]] || CONFIG="$CONFIG_DIR/$NAME.env"
 [[ -n "$NAME" ]] || NAME="$(basename "$CONFIG" .env)"
-[[ -f "$CONFIG" ]] || { echo "no config at $CONFIG (see examples/pmpro-crontrol.env)" >&2; exit 2; }
+[[ -f "$CONFIG" ]] || { echo "no config at $CONFIG (see examples/pmpro-cron-management.env)" >&2; exit 2; }
 
 log() { printf '%s [wporg-fork-watch:%s] %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$NAME" "$*"; }
 die() { log "ERROR: $*"; exit 1; }

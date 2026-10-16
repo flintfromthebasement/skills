@@ -9,7 +9,7 @@
 #
 # Usage: bash scripts/setup.sh <name> [--example <file>] [--force] [--yes] [--no-cron] [--cron]
 #   <name>      watch name; config lands at ~/.config/wporg-fork-watch/<name>.env
-#   --example   config to copy when none exists (default: examples/<name>.env, else examples/pmpro-crontrol.env)
+#   --example   config to copy when none exists (default: examples/<name>.env, else examples/pmpro-cron-management.env)
 #   --cron      (re)install the crontab line from SCHEDULE in the config and exit
 #   --no-cron   everything except the crontab line
 #   --force     redo deps/cron/receipt steps (the config file is never touched)
@@ -82,7 +82,7 @@ if [[ -f "$CONFIG" ]]; then
   log "config exists: $CONFIG (left untouched)"
 else
   [[ -n "$EXAMPLE" ]] || EXAMPLE="$SKILL_DIR/examples/$NAME.env"
-  [[ -f "$EXAMPLE" ]] || EXAMPLE="$SKILL_DIR/examples/pmpro-crontrol.env"
+  [[ -f "$EXAMPLE" ]] || EXAMPLE="$SKILL_DIR/examples/pmpro-cron-management.env"
   cp "$EXAMPLE" "$CONFIG"
   chmod 600 "$CONFIG"
   log "config written from $(basename "$EXAMPLE"): $CONFIG"

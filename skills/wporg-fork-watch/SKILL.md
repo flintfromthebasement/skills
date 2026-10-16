@@ -7,7 +7,7 @@ description: Keep a fork of a WordPress.org plugin current without re-doing the 
 
 You forked a WordPress.org plugin because a release added something you refuse to ship (cross-promotion panels, one-click installers for a vendor's other plugins, usage tracking, a rebrand). The problem with that fork is next month: upstream keeps shipping real fixes, and someone has to port them while keeping the junk out. This skill makes that a daily cron with an agent doing the merge and a human doing the merge button.
 
-Built for `strangerstudios/pmpro-crontrol`, a fork of WP Crontrol made after the 2.0.0 Awesome Motive release. The example config and policy are the real ones.
+Built for `strangerstudios/pmpro-cron-management`, a fork of WP Crontrol made after the 2.0.0 Awesome Motive release. The example config and policy are the real ones.
 
 ## How it works
 
@@ -37,8 +37,8 @@ Design points worth knowing before you trust it:
 ## Setup
 
 ```bash
-bash scripts/setup.sh pmpro-crontrol            # deps check, config from examples/, cron prompt, receipt
-bash scripts/setup.sh my-fork --example examples/pmpro-crontrol.env --no-cron
+bash scripts/setup.sh pmpro-cron-management            # deps check, config from examples/, cron prompt, receipt
+bash scripts/setup.sh my-fork --example examples/pmpro-cron-management.env --no-cron
 ```
 
 Then edit `~/.config/wporg-fork-watch/<name>.env`:
@@ -50,7 +50,7 @@ Then edit `~/.config/wporg-fork-watch/<name>.env`:
 | `BASE_BRANCH`, `BASE_REMOTE`, `PUSH_REMOTE`, `PR_REPO` | fork-model aware: `BASE_REMOTE` defaults to `upstream` when that remote exists; the PR head gets an `owner:` prefix when push and PR repos differ |
 | `VENDOR_BRANCH`, `TAG_PREFIX` | pristine SVN export branch and its per-release tags |
 | `PR_BRANCH_PREFIX`, `PR_LABEL` | PR head branch name and label (label is created if missing) |
-| `POLICY_FILE` | markdown the agent and reviewer follow; see `examples/pmpro-crontrol.policy.md` |
+| `POLICY_FILE` | markdown the agent and reviewer follow; see `examples/pmpro-cron-management.policy.md` |
 | `AGENT_CMD`, `AGENT_TOOLS`, `AGENT_TIMEOUT` | the merge agent; default `claude -p --model opus --effort high --permission-mode acceptEdits --allowedTools "<git/php/grep/...>"` |
 | `REVIEW_CMD`, `REVIEW_AGENT_CMD` | `builtin` (agent review posted with `gh pr review`), a command taking the PR URL, or `none` |
 | `LINT_CMD` | `builtin` (`php -l` on changed PHP), a command run in the worktree, or `none` |
@@ -71,17 +71,17 @@ If your `main` was not branched from that commit, the first merge will conflict 
 ## Run
 
 ```bash
-scripts/wporg-fork-watch.sh pmpro-crontrol --list        # SVN tags vs imported state
-scripts/wporg-fork-watch.sh pmpro-crontrol --dry-run     # full rehearsal, no push/PR/review/notify
-scripts/wporg-fork-watch.sh pmpro-crontrol               # the cron entry point
-scripts/wporg-fork-watch.sh pmpro-crontrol --version 2.0.1   # re-port a specific tag
+scripts/wporg-fork-watch.sh pmpro-cron-management --list        # SVN tags vs imported state
+scripts/wporg-fork-watch.sh pmpro-cron-management --dry-run     # full rehearsal, no push/PR/review/notify
+scripts/wporg-fork-watch.sh pmpro-cron-management               # the cron entry point
+scripts/wporg-fork-watch.sh pmpro-cron-management --version 2.0.1   # re-port a specific tag
 ```
 
 Logs: `~/.local/state/wporg-fork-watch/<name>.log`, plus `<name>-<version>-agent.log` and `-review.md` per release.
 
 ## Writing a policy
 
-The policy is the whole product. Say what the fork is and why, then four sections the prompt leans on: **Keep**, **Drop**, **Fork identity** (renamed main file, header, added files, things that must survive every merge), **Version and changelog**, and **Verification** (the greps and lints the agent must run). Be concrete about markers: CSS class prefixes, option names, filter names, image folders. The agent is told that dropped code must not survive in any file and that cleanly merged hunks still need judging, so the policy should name the things a diff would not make obvious. `examples/pmpro-crontrol.policy.md` is a complete one.
+The policy is the whole product. Say what the fork is and why, then four sections the prompt leans on: **Keep**, **Drop**, **Fork identity** (renamed main file, header, added files, things that must survive every merge), **Version and changelog**, and **Verification** (the greps and lints the agent must run). Be concrete about markers: CSS class prefixes, option names, filter names, image folders. The agent is told that dropped code must not survive in any file and that cleanly merged hunks still need judging, so the policy should name the things a diff would not make obvious. `examples/pmpro-cron-management.policy.md` is a complete one.
 
 ## Plugging in your own tools
 
