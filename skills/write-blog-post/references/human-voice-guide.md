@@ -92,7 +92,7 @@ Don't over-correct into something flat. Stripping tells is half the job; the oth
 - **Lived, specific detail.** Real numbers, real moments, real objects. Specificity is the opposite of AI vagueness. **Never invent it.** If the draft needs a detail the author hasn't given you, leave a `[DETAIL: ...]` placeholder and ask. A fabricated anecdote is worse than a generic sentence.
 - **Parentheticals and asides.** Thinking out loud in parentheses reads human. Keep them.
 - **A little wander in the middle.** It's okay for a thought to take a detour before it lands. AI is suspiciously tidy.
-- **First person and contractions** where the register allows it (see the contractions rule in `style-guide.md`).
+- **First person and contractions** where the register allows it.
 - **Opinions framed as observation.** "This surprised me," "I could be wrong, but," "I think." (Go easy on "noticing": repeated, it reads as model voice.) (Not "I keep coming back to this" or "that's the detail that stays with me": those have become model tics of their own.)
 - **Honest uncertainty.** "I haven't figured this out." "I don't have a clean answer yet." Name the tension without forcing a resolution.
 - **Endings that invite, not conclude.** A question, an admission, or a concrete next step beats a polished summary line.

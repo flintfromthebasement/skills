@@ -11,12 +11,7 @@ Default house rules. A project's voice profile can override any of these; note o
 
 ## Contractions
 
-Use editorial judgment:
-
-- **Formal or technical documentation:** consider expanding. "We would" is faster to parse than "we'd," especially for readers who aren't native English speakers.
-- **Conversational blog prose, storytelling, and CTAs:** keep contractions. "Customers don't stay because of a feature list" reads more naturally than the expanded form.
-
-Don't mechanically expand every contraction in an editing pass.
+Use them. "Customers don't stay because of a feature list" reads more naturally than the expanded form, and prose that expands every contraction reads stiff and machine-written. Don't expand contractions in an editing pass.
 
 ## Names and Terms
 

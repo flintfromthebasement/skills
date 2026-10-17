@@ -213,7 +213,7 @@ Fix or consciously keep every flag. Kept flags get a one-line reason in the note
 - Official product and feature names, full name before abbreviation, consistent brand casing.
 - Double quotes for highlighted UI terms. `**Term**: description` for settings. Bold each segment of a menu path, with `>` outside the bold.
 - Spelling and term conventions from the word list (e.g., "backend," "codebase," "checkbox," "backup" as a noun vs. "back up" as a verb).
-- Contractions by register: kept in conversational prose, considered for expansion in formal docs.
+- Contractions kept, not expanded.
 - SEO (if it applies): keyword in title, first 100 words, one H2, one alt text.
 
 ### Pass 6: Critic Review
