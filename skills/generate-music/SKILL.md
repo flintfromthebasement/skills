@@ -102,7 +102,7 @@ Short version (full notes in [`references/latency.md`](references/latency.md)):
 |---|---|
 | `no backend configured for …` | Run `--check`; set `ACESTEP_API_URL`, `MUSICGEN_GATEWAY_URL`, or install `modal` and deploy `modal/` (see backends.md) |
 | ACE-Step "not reachable" but something runs on 8001 | Port clash. AutoMem and other services also default to 8001; start ACE-Step with `ACESTEP_API_PORT=8011` and set `ACESTEP_API_URL` to match |
-| Few-second file | Tags on the same line as lyrics, or a Music 3 instrumental with no tag sheet ending early |
+| Few-second file | Tags on the same line as lyrics, or a Music 3 instrumental sheet with too few sections |
 | Instrumental when you wanted vocals | Name the vocal gender + timbre in the caption (Music 3); pass lyrics (ACE-Step covers render instrumental without them) |
 | Music 3 thin "demo" sound | Name 4+ instruments that stay in through the verses; avoid "raw", "simple", "stripped" |
 | Modal first call takes minutes | Cold start loading weights (Music 3 ~20GB). Later calls in the scaledown window are fast |

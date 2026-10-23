@@ -29,6 +29,9 @@ FAKE_MP3 = b"ID3fake-mp3-bytes"
 class FakeServer(BaseHTTPRequestHandler):
     requests: ClassVar[list] = []
     polls_before_done = 1
+    file_url = "/v1/audio?path=%2Ftmp%2Fx.mp3"
+    redirect_to = ""
+    poll_failures = 0
 
     def log_message(self, *args):
         pass
@@ -41,6 +44,12 @@ class FakeServer(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        FakeServer.requests.append({"path": self.path, "method": "GET", "auth": self.headers.get("Authorization", "")})
+        if self.path == "/redirect":
+            self.send_response(302)
+            self.send_header("Location", FakeServer.redirect_to)
+            self.end_headers()
+            return
         if self.path == "/health":
             return self._send({"data": {"status": "ok", "service": "ACE-Step API"}, "code": 200})
         if self.path.startswith("/v1/audio"):
@@ -62,11 +71,14 @@ class FakeServer(BaseHTTPRequestHandler):
             done = sum(r["path"] == "/query_result" for r in FakeServer.requests) > FakeServer.polls_before_done
             if not done:
                 return self._send({"data": [{"task_id": "t1", "status": 0}]})
-            result = json.dumps([{"file": "/v1/audio?path=%2Ftmp%2Fx.mp3", "status": 1, "metas": {"bpm": 90}}])
+            result = json.dumps([{"file": FakeServer.file_url, "status": 1, "metas": {"bpm": 90}}])
             return self._send({"data": [{"task_id": "t1", "status": 1, "result": result}]})
         if self.path == "/submit_song":
             return self._send({"call_id": "fc-1"})
         if self.path == "/poll_song":
+            if FakeServer.poll_failures > 0:
+                FakeServer.poll_failures -= 1
+                return self._send({"error": "upstream hiccup"}, 503)
             return self._send({"status": "done", "mp3_b64": base64.b64encode(FAKE_MP3).decode()})
         self._send({"error": "nope"}, 404)
 
@@ -84,6 +96,9 @@ class GenerateMusicTests(unittest.TestCase):
 
     def setUp(self):
         FakeServer.requests = []
+        FakeServer.file_url = "/v1/audio?path=%2Ftmp%2Fx.mp3"
+        FakeServer.redirect_to = ""
+        FakeServer.poll_failures = 0
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = Path(self.tmp.name)
         clean = {k: v for k, v in os.environ.items() if not k.startswith(("MUSICGEN_", "ACESTEP_"))}
@@ -115,6 +130,78 @@ class GenerateMusicTests(unittest.TestCase):
         self.assertEqual(body["seed"], 7)
         self.assertFalse(body["use_random_seed"])
         self.assertEqual(body["bpm"], 85)
+        self.assertFalse(body["thinking"])
+        download = [r for r in FakeServer.requests if r["path"].startswith("/v1/audio")][0]
+        self.assertEqual(download["auth"], "Bearer k")  # same host as ACESTEP_API_URL
+
+    def gets(self, prefix):
+        return [r for r in FakeServer.requests if r.get("method") == "GET" and r["path"].startswith(prefix)]
+
+    def test_acestep_download_skips_auth_on_other_host(self):
+        os.environ.update(ACESTEP_API_URL=self.url, ACESTEP_API_KEY="k")
+        FakeServer.file_url = self.url.replace("127.0.0.1", "localhost") + "/v1/audio?path=x.mp3"
+        out = self.dir / "o.mp3"
+        self.assertEqual(self.run_cli("--model", "acestep", "--prompt", "x", "--out", str(out)), 0)
+        self.assertEqual(self.gets("/v1/audio")[0]["auth"], "")
+
+    def test_acestep_download_strips_auth_on_cross_host_redirect(self):
+        os.environ.update(ACESTEP_API_URL=self.url, ACESTEP_API_KEY="k")
+        FakeServer.file_url = "/redirect"
+        FakeServer.redirect_to = self.url.replace("127.0.0.1", "localhost") + "/v1/audio?path=x.mp3"
+        out = self.dir / "r.mp3"
+        self.assertEqual(self.run_cli("--model", "acestep", "--prompt", "x", "--out", str(out)), 0)
+        self.assertEqual(out.read_bytes(), FAKE_MP3)
+        self.assertEqual(self.gets("/redirect")[0]["auth"], "Bearer k")
+        self.assertEqual(self.gets("/v1/audio")[0]["auth"], "")
+
+    def test_acestep_download_failure_exits_1(self):
+        os.environ["ACESTEP_API_URL"] = self.url
+        FakeServer.file_url = "/missing.mp3"
+        self.assertEqual(self.run_cli("--model", "acestep", "--prompt", "x", "--out", str(self.dir / "f.mp3")), 1)
+
+    def test_gateway_acestep_carries_language_steps_thinking(self):
+        os.environ["MUSICGEN_GATEWAY_URL"] = self.url
+        rc = self.run_cli("--model", "acestep", "--backend", "gateway", "--prompt", "city pop",
+                          "--lyrics", "[Verse]\nhello", "--language", "ja", "--steps", "12", "--thinking",
+                          "--seed", "3", "--out", str(self.dir / "g.mp3"))
+        self.assertEqual(rc, 0)
+        submit = FakeServer.requests[0]["body"]
+        self.assertEqual(submit["vocal_language"], "ja")
+        self.assertEqual(submit["inference_steps"], 12)
+        self.assertIs(submit["thinking"], True)
+        self.assertEqual(submit["seed"], 3)
+
+    def test_gateway_acestep_thinking_defaults_off_and_instrumental_drops_lyrics(self):
+        os.environ["MUSICGEN_GATEWAY_URL"] = self.url
+        rc = self.run_cli("--model", "acestep", "--backend", "gateway", "--prompt", "ambient",
+                          "--lyrics", "[Verse]\nhello", "--instrumental", "--out", str(self.dir / "g.mp3"))
+        self.assertEqual(rc, 0)
+        submit = FakeServer.requests[0]["body"]
+        self.assertIs(submit["thinking"], False)
+        self.assertEqual(submit["lyrics"], "")
+
+    def test_gateway_poll_retries_transient_errors(self):
+        os.environ["MUSICGEN_GATEWAY_URL"] = self.url
+        FakeServer.poll_failures = 2
+        rc = self.run_cli("--model", "acestep", "--backend", "gateway", "--prompt", "x", "--out", str(self.dir / "p.mp3"))
+        self.assertEqual(rc, 0)
+        self.assertEqual(sum(r["path"] == "/poll_song" for r in FakeServer.requests), 3)
+
+    def test_gateway_music3_instrumental_keeps_tag_sheet(self):
+        os.environ["MUSICGEN_GATEWAY_URL"] = self.url
+        sheet = "[Intro]\n(instrumental)\n[Verse]\n(instrumental)\n[Outro]\n(instrumental)"
+        rc = self.run_cli("--model", "music3", "--prompt", "post-rock, swelling guitars", "--instrumental",
+                          "--lyrics", sheet, "--out", str(self.dir / "i.mp3"))
+        self.assertEqual(rc, 0)
+        submit = FakeServer.requests[0]["body"]
+        self.assertEqual(submit["lyrics"], sheet)
+        self.assertTrue(submit["instrumental"])
+
+    def test_dit_model_rejected_off_api_backend(self):
+        os.environ["MUSICGEN_GATEWAY_URL"] = self.url
+        rc = self.run_cli("--model", "acestep", "--backend", "gateway", "--prompt", "x",
+                          "--dit-model", "acestep-v15-xl-turbo", "--dry-run")
+        self.assertEqual(rc, 1)
 
     def test_acestep_api_cover_uploads_multipart(self):
         os.environ["ACESTEP_API_URL"] = self.url

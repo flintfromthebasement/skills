@@ -67,6 +67,10 @@ class GenError(RuntimeError):
     pass
 
 
+class TransientError(GenError):
+    """A connection failure or 5xx that is worth retrying while polling."""
+
+
 def log(msg: str) -> None:
     print(f"[generate-music] {msg}", file=sys.stderr, flush=True)
 
@@ -161,13 +165,43 @@ def http_json(url: str, payload: dict, headers: dict | None = None, timeout: flo
 
 def _read_json(req: urllib.request.Request, timeout: float) -> dict:
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read().decode() or "{}")
+        return json.loads(_fetch(req, timeout).decode() or "{}")
+    except json.JSONDecodeError as e:
+        raise GenError(f"bad JSON from {req.full_url}: {e}") from None
+
+
+def _fetch(req: urllib.request.Request, timeout: float, opener=None) -> bytes:
+    try:
+        with (opener or urllib.request.build_opener()).open(req, timeout=timeout) as r:
+            return r.read()
     except urllib.error.HTTPError as e:
         detail = e.read().decode(errors="replace")[:500]
-        raise GenError(f"HTTP {e.code} from {req.full_url}: {detail}") from None
+        cls = TransientError if e.code in (502, 503, 504) else GenError
+        raise cls(f"HTTP {e.code} from {req.full_url}: {detail}") from None
     except urllib.error.URLError as e:
-        raise GenError(f"cannot reach {req.full_url}: {e.reason}") from None
+        raise TransientError(f"cannot reach {req.full_url}: {e.reason}") from None
+    except OSError as e:  # timeouts and resets while reading
+        raise TransientError(f"connection to {req.full_url} failed: {e}") from None
+
+
+def same_host(url_a: str, url_b: str) -> bool:
+    a, b = urllib.parse.urlsplit(url_a), urllib.parse.urlsplit(url_b)
+    default = {"http": 80, "https": 443}
+    try:
+        return bool(a.hostname) and (a.hostname, a.port or default.get(a.scheme)) == (
+            b.hostname, b.port or default.get(b.scheme))
+    except ValueError:
+        return False
+
+
+class _StripAuthOnRedirect(urllib.request.HTTPRedirectHandler):
+    """Drop the Authorization header when a redirect leaves the original host."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is not None and not same_host(newurl, req.full_url):
+            new.remove_header("Authorization")
+        return new
 
 
 def multipart(fields: dict, files: dict) -> tuple[bytes, str]:
@@ -258,7 +292,11 @@ def run_acestep_api(a: argparse.Namespace) -> bytes:
     deadline = time.time() + a.timeout
     while time.time() < deadline:
         time.sleep(a.poll_interval)
-        resp = http_json(f"{base}/query_result", {"task_id_list": [task_id]}, acestep_headers())
+        try:
+            resp = http_json(f"{base}/query_result", {"task_id_list": [task_id]}, acestep_headers())
+        except TransientError as e:
+            log(f"poll failed, retrying: {e}")
+            continue
         items = resp.get("data") or []
         item = next((i for i in items if i.get("task_id") == task_id), items[0] if items else None)
         if not item:
@@ -284,20 +322,28 @@ def run_acestep_api(a: argparse.Namespace) -> bytes:
             metas = results[0].get("metas")
             if metas:
                 log(f"ACE-Step metas: {json.dumps(metas)}")
-            req = urllib.request.Request(file_url, headers=acestep_headers())
-            with urllib.request.urlopen(req, timeout=300) as r:
-                return r.read()
+            headers = acestep_headers() if same_host(file_url, base) else {}
+            req = urllib.request.Request(file_url, headers=headers)
+            try:
+                return _fetch(req, 300, urllib.request.build_opener(_StripAuthOnRedirect))
+            except GenError as e:
+                raise GenError(f"ACE-Step finished but the download failed: {e}") from None
     raise GenError(f"ACE-Step task {task_id} still running after {a.timeout}s")
 
 
 # ── gateway (submit_song / poll_song) ──────────────────────────────────────────
 
 
+def outgoing_lyrics(a: argparse.Namespace) -> str:
+    """Music 3 keeps a tag-only sheet under --instrumental; other models drop lyrics."""
+    return a.lyrics_text if a.model == "music3" or not a.instrumental else ""
+
+
 def gateway_payload(a: argparse.Namespace) -> dict:
     p: dict = {
         "model": a.model,
         "tags": a.prompt_text,
-        "lyrics": "" if a.instrumental else a.lyrics_text,
+        "lyrics": outgoing_lyrics(a),
         "instrumental": bool(a.instrumental),
     }
     if a.seconds:
@@ -314,6 +360,11 @@ def gateway_payload(a: argparse.Namespace) -> dict:
         if a.task == "repaint":
             p["repainting_start"] = a.repaint_start
             p["repainting_end"] = a.repaint_end
+        if a.language:
+            p["vocal_language"] = a.language
+        if a.steps:
+            p["inference_steps"] = a.steps
+        p["thinking"] = bool(a.thinking)
     if a.model == "music3" and a.ref_audio:
         p["ref_strength"] = a.strength if a.strength is not None else 0.3
         p["ref_tile"] = bool(a.ref_tile)
@@ -343,7 +394,11 @@ def run_gateway(a: argparse.Namespace) -> bytes:
     while time.time() < deadline:
         time.sleep(a.poll_interval)
         body = {"call_id": call_id, **({"token": token} if token else {})}
-        resp = http_json(poll, body, headers, timeout=300)
+        try:
+            resp = http_json(poll, body, headers, timeout=300)
+        except TransientError as e:
+            log(f"poll failed, retrying: {e}")
+            continue
         status = resp.get("status")
         if status == "done":
             return base64.b64decode(resp["mp3_b64"])
@@ -386,11 +441,14 @@ def run_modal(a: argparse.Namespace) -> bytes:
             repainting_start=a.repaint_start,
             repainting_end=a.repaint_end,
             seed=a.seed if a.seed is not None else -1,
+            vocal_language=a.language or "",
+            inference_steps=a.steps or 0,
+            thinking=bool(a.thinking),
         )
     if a.model == "music3":
         kwargs = dict(
             prompt=a.prompt_text,
-            lyrics="" if a.instrumental else a.lyrics_text,
+            lyrics=outgoing_lyrics(a),
             audio_duration=float(a.seconds),
             seed=a.seed if a.seed is not None else 42,
             instrumental=bool(a.instrumental),
@@ -448,7 +506,7 @@ def run_lyria(a: argparse.Namespace, out: Path) -> Path:
 
     try:
         asyncio.run(asyncio.wait_for(go(), timeout=a.seconds + 30))
-    except TimeoutError:
+    except (TimeoutError, asyncio.TimeoutError):
         log(f"Lyria stream timed out with {len(buf) / (rate * channels * width):.1f}s collected")
     if not buf:
         raise GenError("Lyria returned no audio")
@@ -594,6 +652,9 @@ def main(argv: list[str] | None = None) -> int:
             a.seconds = max(lo, min(hi, float(a.seconds)))
 
         backend = resolve_backend(a.model, a.backend)
+        if a.dit_model and backend != "api":
+            raise GenError(f"--dit-model needs the api backend; the {backend} ACE-Step app runs a fixed DiT "
+                           "(acestep-v15-turbo in ../modal/acestep_app.py)")
 
         if a.out:
             out = Path(a.out).expanduser()

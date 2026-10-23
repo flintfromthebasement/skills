@@ -23,7 +23,7 @@ BPM, key, and time signature have typed parameters: `--bpm 96 --key "E minor" --
 - `--seconds` 10–600. Omit to let the LM pick a length.
 - `--steps` diffusion steps. Turbo models default to 8 (range 1–20); base models want 32–64.
 - `--thinking` runs the 5Hz LM to plan audio codes first. Better structure, slower.
-- `--dit-model` picks a DiT on the server (`acestep-v15-turbo`, `acestep-v15-xl-turbo`, …; list them with `GET /v1/models`).
+- `--dit-model` picks a DiT on the server (`acestep-v15-turbo`, `acestep-v15-xl-turbo`, …; list them with `GET /v1/models`). `api` backend only: the Modal app loads `acestep-v15-turbo`, so the CLI refuses the flag on `modal` and `gateway`.
 
 ### Reference audio (ACE-Step only)
 
@@ -75,7 +75,7 @@ What we found:
 
 - **Density is a prompt problem.** Words like "raw", "simple", "stripped", "close", or naming one guitar produce a hollow demo. Name 4+ instruments that stay in through the verses; save thin textures for the bridge.
 - **It regresses toward mid-density.** Ask for a full band and it thins out; ask for one solo guitar and it adds bass, drums, synths, or a singer, even when the caption says "no vocals, one guitar only" three ways. Use ACE-Step for solo pieces.
-- **Instrumentals end early.** `--instrumental` with no tag sheet ended at ~35s on a 150s cap. A tag-only sheet (`[Intro]`, `[Verse]`×3, `[Bridge]`, `[Outro]`, each line `(instrumental)`) paced it to 88–150s, but structure tags without `--instrumental` invite vocals back.
+- **Instrumentals end early.** A two-section sheet ended at ~35s on a 150s cap. A tag-only sheet (`[Intro]`, `[Verse]`×3, `[Bridge]`, `[Outro]`, each line `(instrumental)`) paced it to 88–150s. `--instrumental` with no lyrics sends that sheet; to shape the sections yourself, pass your own tag-only sheet with `--lyrics-file` alongside `--instrumental`. Keep the `(instrumental)` lines: bare structure tags invite vocals back.
 - `--seconds` is a cap, not a target.
 
 **Sound transfer (Modal app only).** `modal/music3_app.py` can pin a reference clip's latents into the renderer: `--ref-audio riff.wav --strength 0.2-0.4 --ref-tile` copies the reference's timbre, room, and technique across the song, and is the only way we found to keep Music 3 on a solo instrument. It doesn't teach the composer the riff; true continuation needs an audio→token encoder MiniMax didn't release.

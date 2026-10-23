@@ -12,10 +12,13 @@ app = modal.App("heartmula")
 CKPT_DIR = "/ckpt"
 weights = modal.Volume.from_name("heartmula-weights", create_if_missing=True)
 
+# Upstream heartlib commit the image installs.
+HEARTLIB_REF = "3783bdb8441f2c298b1e64c8651173aac200361c"
+
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("git", "ffmpeg")
-    .pip_install("git+https://github.com/HeartMuLa/heartlib.git", "huggingface_hub[hf_transfer]")
+    .pip_install(f"git+https://github.com/HeartMuLa/heartlib.git@{HEARTLIB_REF}", "huggingface_hub[hf_transfer]")
     .env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
 )
 

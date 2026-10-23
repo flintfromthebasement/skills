@@ -19,13 +19,18 @@ app = modal.App("acestep")
 CKPT_DIR = "/ckpt"
 weights = modal.Volume.from_name("acestep-weights", create_if_missing=True)
 
+# Upstream ACE-Step 1.5 commit the image builds from.
+ACESTEP_REF = "ca1e85fe9430179831e6bc6be790c332190a3866"
+
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("git", "ffmpeg")
     # nano-vllm is vendored inside the repo (uv path source), so clone and
     # install it before the package itself — a plain git pip install can't see it
     .run_commands(
-        "git clone --depth 1 https://github.com/ace-step/ACE-Step-1.5.git /opt/acestep",
+        "git init -q /opt/acestep",
+        f"git -C /opt/acestep fetch -q --depth 1 https://github.com/ace-step/ACE-Step-1.5.git {ACESTEP_REF}",
+        "git -C /opt/acestep checkout -q FETCH_HEAD",
         "pip install /opt/acestep/acestep/third_parts/nano-vllm --extra-index-url https://download.pytorch.org/whl/cu128",
         "pip install /opt/acestep --extra-index-url https://download.pytorch.org/whl/cu128",
     )
@@ -90,6 +95,9 @@ class AceStep:
         seed: int = -1,
         keyscale: str = "",
         timesignature: str = "",
+        vocal_language: str = "",
+        inference_steps: int = 0,
+        thinking: bool = False,
     ) -> bytes:
         import dataclasses
         import pathlib
@@ -99,6 +107,7 @@ class AceStep:
         from acestep.inference import GenerationConfig, GenerationParams, generate_music
 
         supported = {f.name for f in dataclasses.fields(GenerationParams)}
+        seed = int(seed)
         kwargs = dict(
             caption=caption,
             lyrics=lyrics,
@@ -109,25 +118,35 @@ class AceStep:
             audio_cover_strength=float(audio_cover_strength),
             repainting_start=float(repainting_start),
             repainting_end=float(repainting_end),
-            seed=int(seed),
+            seed=seed,
             keyscale=keyscale,
             timesignature=timesignature,
+            thinking=bool(thinking),
         )
-        audio_dir = tempfile.mkdtemp(prefix="acestep-in-")
-        for key, blob, name in (
-            ("src_audio", src_audio, src_audio_name),
-            ("reference_audio", reference_audio, reference_audio_name),
-        ):
-            if blob:
-                p = pathlib.Path(audio_dir) / pathlib.Path(name).name
-                p.write_bytes(blob)
-                kwargs[key] = str(p)
-        dropped = sorted(k for k in kwargs if k not in supported)
-        if dropped and (task_type != "text2music" or src_audio or reference_audio):
-            raise RuntimeError(f"deployed ACE-Step build lacks params {dropped}; rebuild the image")
-        params = GenerationParams(**{k: v for k, v in kwargs.items() if k in supported})
-        config = GenerationConfig(batch_size=1, audio_format="mp3")
-        with tempfile.TemporaryDirectory() as td:
+        if vocal_language:
+            kwargs["vocal_language"] = vocal_language
+        if inference_steps and int(inference_steps) > 0:
+            kwargs["inference_steps"] = int(inference_steps)
+        # upstream ignores the seed unless use_random_seed is False
+        config = GenerationConfig(
+            batch_size=1,
+            audio_format="mp3",
+            use_random_seed=seed < 0,
+            seeds=None if seed < 0 else [seed],
+        )
+        with tempfile.TemporaryDirectory(prefix="acestep-in-") as audio_dir, tempfile.TemporaryDirectory() as td:
+            for key, blob, name in (
+                ("src_audio", src_audio, src_audio_name),
+                ("reference_audio", reference_audio, reference_audio_name),
+            ):
+                if blob:
+                    p = pathlib.Path(audio_dir) / pathlib.Path(name).name
+                    p.write_bytes(blob)
+                    kwargs[key] = str(p)
+            dropped = sorted(k for k in kwargs if k not in supported)
+            if dropped and (task_type != "text2music" or src_audio or reference_audio):
+                raise RuntimeError(f"deployed ACE-Step build lacks params {dropped}; rebuild the image")
+            params = GenerationParams(**{k: v for k, v in kwargs.items() if k in supported})
             result = generate_music(self.dit, self.llm, params, config, save_dir=td)
             if not result.success or not result.audios:
                 raise RuntimeError(f"ACE-Step generation failed: {result.error or result.status_message}")
@@ -162,6 +181,9 @@ def main(
     seed: int = -1,
     bpm: int = 0,
     keyscale: str = "",
+    language: str = "",
+    steps: int = 0,
+    thinking: bool = False,
 ):
     import pathlib
 
@@ -184,6 +206,9 @@ def main(
         seed=seed,
         bpm=bpm or None,
         keyscale=keyscale,
+        vocal_language=language,
+        inference_steps=steps,
+        thinking=thinking,
     )
     pathlib.Path(out).write_bytes(data)
     print(f"saved {out} ({len(data)/1e6:.1f} MB)")

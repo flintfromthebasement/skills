@@ -14,10 +14,12 @@ Protocol (POST, JSON; token in the body as "token" or as `Authorization: Bearer`
                 max_audio_length_ms?, seed?,
                 acestep: task_type?, bpm?, keyscale?, timesignature?, audio_cover_strength?,
                          repainting_start?, repainting_end?, src_audio_b64?/src_audio_name?,
-                         ref_audio_b64?/ref_audio_name?
+                         ref_audio_b64?/ref_audio_name?, vocal_language?, inference_steps?,
+                         thinking? (default false)
                 music3:  ref_audio_b64?/ref_audio_name?, ref_strength?, ref_tile?}
                -> {call_id}
   /poll_song   {call_id} -> {status: pending|done|error, mp3_b64?, error?}
+A bad or missing token gets HTTP 401 {error: "unauthorized"}.
 
 App names default to the ones in this folder; override with env vars on the secret
 (MUSICGEN_MODAL_ACESTEP=app:Class, MUSICGEN_MODAL_MUSIC3=…, MUSICGEN_MODAL_HEARTMULA=…).
@@ -53,6 +55,7 @@ def _b64(payload: dict, key: str):
 @modal.asgi_app()
 def web():
     from fastapi import FastAPI, Request
+    from fastapi.responses import JSONResponse
 
     api = FastAPI()
     expected = os.environ["MUSICGEN_GATEWAY_TOKEN"]
@@ -62,11 +65,14 @@ def web():
         token = payload.get("token") or (header[7:] if header.lower().startswith("bearer ") else "")
         return bool(token) and hmac.compare_digest(str(token), expected)
 
+    def unauthorized() -> JSONResponse:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+
     @api.post("/submit_song")
-    async def submit_song(request: Request) -> dict:
+    async def submit_song(request: Request):
         payload = await request.json()
         if not authed(request, payload):
-            return {"error": "unauthorized"}
+            return unauthorized()
         model = payload.get("model", "acestep")
         tags = (payload.get("tags") or "").strip()
         lyrics = (payload.get("lyrics") or "").strip()
@@ -77,11 +83,12 @@ def web():
             return {"error": "tags is required"}
 
         if model == "acestep":
+            duration = float(payload.get("max_audio_length_ms", -1000)) / 1000
             call = _generator(model).spawn(
                 caption=tags,
                 lyrics="" if instrumental else lyrics,
                 instrumental=instrumental or not lyrics,
-                duration=float(payload.get("max_audio_length_ms", -1000)) / 1000,
+                duration=min(600.0, duration) if duration > 0 else -1.0,
                 bpm=int(payload["bpm"]) if payload.get("bpm") else None,
                 keyscale=payload.get("keyscale", ""),
                 timesignature=str(payload.get("timesignature", "")),
@@ -94,6 +101,9 @@ def web():
                 repainting_start=float(payload.get("repainting_start", 0.0)),
                 repainting_end=float(payload.get("repainting_end", -1.0)),
                 seed=int(payload.get("seed", -1)),
+                vocal_language=str(payload.get("vocal_language") or ""),
+                inference_steps=int(payload.get("inference_steps") or 0),
+                thinking=bool(payload.get("thinking", False)),
             )
         elif model == "music3":
             if not lyrics and not instrumental:
@@ -120,15 +130,15 @@ def web():
             call = _generator(model).spawn(
                 lyrics=lyrics,
                 tags=tags,
-                max_audio_length_ms=int(payload.get("max_audio_length_ms", 240_000)),
+                max_audio_length_ms=max(10_000, min(240_000, int(payload.get("max_audio_length_ms", 240_000)))),
             )
         return {"call_id": call.object_id}
 
     @api.post("/poll_song")
-    async def poll_song(request: Request) -> dict:
+    async def poll_song(request: Request):
         payload = await request.json()
         if not authed(request, payload):
-            return {"error": "unauthorized"}
+            return unauthorized()
         fc = modal.FunctionCall.from_id(payload.get("call_id", ""))
         try:
             data = fc.get(timeout=0)

@@ -2,6 +2,8 @@
 
 The CLI never ships with an endpoint. Pick one or more of these, set the env vars, and run `python3 scripts/generate-music.py --check`.
 
+There is no `scripts/setup.sh`: the CLI is stdlib-only for the `api`, `gateway`, and `handoff` backends. The optional backends each need one install, listed in the table below (`pip install modal` + `modal token new`, or `pip install google-genai`).
+
 | Backend | Models | You need |
 |---|---|---|
 | `api` | acestep | ACE-Step 1.5's own REST server, on your machine or anywhere you can reach |
@@ -86,6 +88,16 @@ Cost notes: L40S, scale to zero after 2–3 minutes idle. Cold starts load weigh
 
 Each app also has its own `modal run` entrypoint for one-offs without the CLI.
 
+**Pinned upstream builds.** Each image builds from a fixed upstream commit, so a redeploy can't pick up a changed API. Bump a pin deliberately and retest after.
+
+| App | Upstream | Pin |
+|---|---|---|
+| `acestep_app.py` | https://github.com/ace-step/ACE-Step-1.5 | `ACESTEP_REF` = `ca1e85fe9430179831e6bc6be790c332190a3866` |
+| `heartmula_app.py` | https://github.com/HeartMuLa/heartlib | `HEARTLIB_REF` = `3783bdb8441f2c298b1e64c8651173aac200361c` |
+| `music3_app.py` | https://github.com/huggingface/diffusers (Music 3 PR) | `DIFFUSERS_REF` = `dafe3733fcfdbf3c48915fe77be3aef65b5d6a2d` |
+
+The Modal ACE-Step app loads `acestep-v15-turbo` only, so `--dit-model` works on the `api` backend alone.
+
 ## Gateway (HTTP, for callers without Modal credentials)
 
 `modal/gateway_app.py` puts a token-authed HTTP front on the three Modal apps, so a web app, a phone, or another agent can generate without Modal credentials.
@@ -103,13 +115,14 @@ Protocol, if you'd rather write your own service in front of something else:
 POST /submit_song  {token, model, tags, lyrics, instrumental, max_audio_length_ms, seed,
                     task_type, bpm, keyscale, timesignature, audio_cover_strength,
                     repainting_start, repainting_end, src_audio_b64, src_audio_name,
-                    ref_audio_b64, ref_audio_name, ref_strength, ref_tile}
+                    ref_audio_b64, ref_audio_name, ref_strength, ref_tile,
+                    vocal_language, inference_steps, thinking}
                 → {call_id} | {error}
 POST /poll_song    {token, call_id}
                 → {status: "pending"} | {status: "done", mp3_b64} | {status: "error", error}
 ```
 
-`tags` is the caption (prose for ACE-Step and Music 3, comma tags for HeartMuLa). Fields a model doesn't use are ignored.
+`tags` is the caption (prose for ACE-Step and Music 3, comma tags for HeartMuLa). Fields a model doesn't use are ignored. `thinking` defaults to false, as on ACE-Step's own API server. A bad token gets HTTP 401. For Music 3, `lyrics` may be a tag-only sheet alongside `instrumental: true`.
 
 ## Lyria (Gemini API)
 

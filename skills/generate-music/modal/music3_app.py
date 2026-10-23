@@ -51,7 +51,10 @@ REQUIRED = (
     "scheduler",
 )
 
-INSTRUMENTAL_LYRICS = "[Intro]\n(instrumental)\n[Outro]\n(instrumental)"
+# Tag-only sheet sent when no lyrics are given.
+INSTRUMENTAL_LYRICS = "\n".join(
+    f"[{section}]\n(instrumental)" for section in ("Intro", "Verse", "Verse", "Verse", "Bridge", "Outro")
+)
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -316,7 +319,7 @@ class MiniMaxMusic3:
             sys.path.insert(0, "/root")
             from dav_encoder import load_dav_encoder
 
-            self.dav_encoder = load_dav_encoder(dav_path).eval()
+            self.dav_encoder = load_dav_encoder(dav_path).eval().to("cuda")
 
         with tempfile.TemporaryDirectory() as td:
             src = pathlib.Path(td) / pathlib.Path(ref_name).name
@@ -327,7 +330,7 @@ class MiniMaxMusic3:
                 check=True, capture_output=True,
             )
             wav, _ = sf.read(str(wav_path), dtype="float32", always_2d=True)
-        audio = self.torch.from_numpy(wav.T).unsqueeze(1)  # [2, 1, T]
+        audio = self.torch.from_numpy(wav.T).unsqueeze(1).to("cuda")  # [2, 1, T]
         with self.torch.no_grad():
             latents = self.dav_encoder(audio)  # [2, 64, L]
         return latents.reshape(1, 128, latents.shape[-1])
@@ -347,6 +350,10 @@ class MiniMaxMusic3:
     ) -> bytes:
         """Return 192k stereo MP3 bytes.
 
+        lyrics: the sheet to sing, or a tag-only sheet for an instrumental. Empty lyrics fall back
+        to INSTRUMENTAL_LYRICS. `instrumental` is accepted for protocol compatibility; the sheet
+        decides.
+
         ref_audio: optional clip whose Flow-VAE latents are pinned into the denoise path.
         ref_strength 0..1 = how far along the noise->clean path the pin holds (1.0 ~ verbatim
         over the clip's span, 0.2-0.4 = timbre/room transfer). ref_tile loops the clip's
@@ -364,7 +371,7 @@ class MiniMaxMusic3:
 
         duration = max(5.0, min(300.0, float(audio_duration)))
         text = lyrics.strip()
-        if instrumental or not text:
+        if not text:
             text = INSTRUMENTAL_LYRICS
         text = normalize_lyrics(text)
 

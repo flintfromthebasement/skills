@@ -116,10 +116,7 @@ def _remap_weight_norm_keys(state_dict: Mapping[str, Tensor]) -> dict[str, Tenso
 
 def load_dav_encoder(path: str | Path, *, map_location: Any = "cpu") -> DAVEncoder:
     """Load DAV's encoder and posterior mean projection from a checkpoint file."""
-    try:
-        checkpoint = torch.load(path, map_location=map_location, weights_only=True)
-    except TypeError:
-        checkpoint = torch.load(path, map_location=map_location)
+    checkpoint = torch.load(path, map_location=map_location, weights_only=True)
     state_dict = _remap_weight_norm_keys(_extract_state_dict(checkpoint))
     state_dict = {
         key: value
