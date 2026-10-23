@@ -27,6 +27,7 @@ import datetime
 import json
 import mimetypes
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -60,6 +61,8 @@ MODAL_DEFAULTS = {
     "heartmula": "heartmula:HeartMuLa",
 }
 ACESTEP_DEFAULT_URL = "http://127.0.0.1:8001"
+# Models whose backends take a seed; others ignore --seed.
+SEEDED_MODELS = ("acestep", "music3", "lyria")
 SUNO_STYLE_LIMIT = 1000
 
 
@@ -232,6 +235,13 @@ def acestep_headers() -> dict:
     return {"Authorization": f"Bearer {key}"} if key else {}
 
 
+def cover_strength(a: argparse.Namespace) -> float:
+    """ACE-Step audio_cover_strength: light for a text2music style reference, full for source-audio tasks."""
+    if a.strength is not None:
+        return a.strength
+    return 0.3 if a.task == "text2music" else 1.0
+
+
 def acestep_payload(a: argparse.Namespace) -> dict:
     lyrics = "[Instrumental]" if a.instrumental else a.lyrics_text
     p: dict = {
@@ -258,7 +268,7 @@ def acestep_payload(a: argparse.Namespace) -> dict:
         p["seed"] = a.seed
         p["use_random_seed"] = False
     if a.task != "text2music" or a.src_audio or a.ref_audio:
-        p["audio_cover_strength"] = a.strength if a.strength is not None else 1.0
+        p["audio_cover_strength"] = cover_strength(a)
     if a.task == "repaint":
         p["repainting_start"] = a.repaint_start
         p["repainting_end"] = a.repaint_end
@@ -355,8 +365,8 @@ def gateway_payload(a: argparse.Namespace) -> dict:
         for key, val in (("bpm", a.bpm), ("keyscale", a.key), ("timesignature", a.time_signature)):
             if val:
                 p[key] = val
-        if a.strength is not None:
-            p["audio_cover_strength"] = a.strength
+        if a.task != "text2music" or a.src_audio or a.ref_audio or a.strength is not None:
+            p["audio_cover_strength"] = cover_strength(a)
         if a.task == "repaint":
             p["repainting_start"] = a.repaint_start
             p["repainting_end"] = a.repaint_end
@@ -437,7 +447,7 @@ def run_modal(a: argparse.Namespace) -> bytes:
             src_audio_name=Path(a.src_audio).name if a.src_audio else "src.mp3",
             reference_audio=read(a.ref_audio),
             reference_audio_name=Path(a.ref_audio).name if a.ref_audio else "ref.mp3",
-            audio_cover_strength=a.strength if a.strength is not None else 1.0,
+            audio_cover_strength=cover_strength(a),
             repainting_start=a.repaint_start,
             repainting_end=a.repaint_end,
             seed=a.seed if a.seed is not None else -1,
@@ -601,7 +611,8 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--src-audio", default="", help="Source track for cover / repaint / lego / extract / complete")
     g.add_argument("--ref-audio", default="", help="Style reference clip (ACE-Step) or sound-transfer clip (Music 3)")
     g.add_argument("--strength", type=float, default=None,
-                   help="ACE-Step audio_cover_strength 0-1 (0.2 = loose style transfer) / Music 3 ref_strength")
+                   help="ACE-Step audio_cover_strength 0-1 (default 0.3 with text2music --ref-audio, 1.0 for "
+                        "source-audio tasks) / Music 3 ref_strength (default 0.3)")
     g.add_argument("--ref-tile", action="store_true", help="Music 3: tile the reference across the whole song")
     g.add_argument("--repaint-start", type=float, default=0.0)
     g.add_argument("--repaint-end", type=float, default=-1.0)
@@ -650,6 +661,13 @@ def main(argv: list[str] | None = None) -> int:
         if a.seconds is not None and a.model in SECONDS_RANGE:
             lo, hi = SECONDS_RANGE[a.model]
             a.seconds = max(lo, min(hi, float(a.seconds)))
+
+        if a.model in SEEDED_MODELS and (a.seed is None or a.seed < 0):
+            a.seed = random.randint(0, 2**31 - 1)
+            log(f"seed={a.seed} (random; pass --seed {a.seed} to repeat this take)")
+        elif a.model not in SEEDED_MODELS and a.seed is not None:
+            log(f"{a.model} has no seed control; ignoring --seed")
+            a.seed = None
 
         backend = resolve_backend(a.model, a.backend)
         if a.dit_model and backend != "api":

@@ -7,7 +7,9 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import tempfile
@@ -196,6 +198,44 @@ class GenerateMusicTests(unittest.TestCase):
         submit = FakeServer.requests[0]["body"]
         self.assertEqual(submit["lyrics"], sheet)
         self.assertTrue(submit["instrumental"])
+
+    def test_random_seed_picked_logged_and_sent(self):
+        os.environ["ACESTEP_API_URL"] = self.url
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rc = self.run_cli("--model", "acestep", "--prompt", "x", "--out", str(self.dir / "s.mp3"))
+        self.assertEqual(rc, 0)
+        body = FakeServer.requests[0]["body"]
+        self.assertIsInstance(body["seed"], int)
+        self.assertGreaterEqual(body["seed"], 0)
+        self.assertFalse(body["use_random_seed"])
+        self.assertIn(f"seed={body['seed']} (random", err.getvalue())
+
+    def test_gateway_seed_sent_for_music3_not_heartmula(self):
+        os.environ["MUSICGEN_GATEWAY_URL"] = self.url
+        self.assertEqual(self.run_cli("--model", "music3", "--prompt", "pop", "--lyrics", "[Verse]\nla",
+                                      "--out", str(self.dir / "m.mp3")), 0)
+        self.assertIsInstance(FakeServer.requests[0]["body"]["seed"], int)
+        FakeServer.requests = []
+        self.assertEqual(self.run_cli("--model", "heartmula", "--prompt", "pop", "--lyrics", "[Verse]\nla",
+                                      "--seed", "5", "--out", str(self.dir / "h.mp3")), 0)
+        self.assertNotIn("seed", FakeServer.requests[0]["body"])
+
+    def test_cover_strength_defaults(self):
+        os.environ["MUSICGEN_GATEWAY_URL"] = self.url
+        clip = self.dir / "clip.mp3"
+        clip.write_bytes(b"clip")
+        self.assertEqual(self.run_cli("--model", "acestep", "--backend", "gateway", "--prompt", "x",
+                                      "--ref-audio", str(clip), "--out", str(self.dir / "r.mp3")), 0)
+        self.assertEqual(FakeServer.requests[0]["body"]["audio_cover_strength"], 0.3)
+        FakeServer.requests = []
+        self.assertEqual(self.run_cli("--model", "acestep", "--backend", "gateway", "--prompt", "x", "--task", "cover",
+                                      "--src-audio", str(clip), "--out", str(self.dir / "c.mp3")), 0)
+        self.assertEqual(FakeServer.requests[0]["body"]["audio_cover_strength"], 1.0)
+        FakeServer.requests = []
+        self.assertEqual(self.run_cli("--model", "acestep", "--backend", "gateway", "--prompt", "x",
+                                      "--ref-audio", str(clip), "--strength", "0.6", "--out", str(self.dir / "q.mp3")), 0)
+        self.assertEqual(FakeServer.requests[0]["body"]["audio_cover_strength"], 0.6)
 
     def test_dit_model_rejected_off_api_backend(self):
         os.environ["MUSICGEN_GATEWAY_URL"] = self.url

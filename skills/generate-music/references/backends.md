@@ -58,11 +58,17 @@ python3 scripts/generate-music.py --model acestep --prompt "surf rock, reverb-dr
 
 **Remote box.** Same server on a GPU machine on your LAN or tailnet: start it with `ACESTEP_API_HOST=0.0.0.0` and an `ACESTEP_API_KEY`, then set `ACESTEP_API_URL=http://<host>:<port>` and `ACESTEP_API_KEY` on the client. Don't expose it to the public internet without the key.
 
+**Plain `http://` sends the key in the clear.** The same goes for `MUSICGEN_GATEWAY_TOKEN` on a self-hosted gateway. Over anything but loopback, carry it on an encrypted path: a WireGuard tailnet, an SSH tunnel (`ssh -N -L 8011:127.0.0.1:8011 <gpu-box>`, then `ACESTEP_API_URL=http://127.0.0.1:8011`), or TLS in front (`https://`). The bundled Modal gateway URL is already `https://`.
+
 The API server also has a Gradio UI (`uv run acestep`) for poking at settings by hand, and `profile_inference.py` for timing (see `latency.md`).
 
 ## Modal (serverless GPU, pay per second)
 
 The apps in `../modal/` are the ones we run. Each caches weights in a Modal Volume named `<app>-weights`, created in **your** workspace on first deploy.
+
+**App names collide.** The bundled apps deploy as `acestep`, `minimax-music3`, `heartmula`, and `musicgen-gateway`, with volumes `acestep-weights`, `minimax-music3-weights`, and `heartmula-weights`. `modal deploy` replaces any same-named app in your workspace. If you already run apps with those names, edit the `modal.App(...)` and `modal.Volume.from_name(...)` names before deploying, then point the CLI at them with `MUSICGEN_MODAL_<MODEL>=app:Class` (and set the same variables on the gateway's `musicgen-gateway` secret).
+
+The ACE-Step app loads the `acestep-v15-turbo` DiT and the 1.7B 5Hz LM (`acestep-5Hz-lm-1.7B`), both from upstream's main weights bundle; `download_weights` fetches them. Music 3's `download_weights` also fetches `dav.pth`, the encoder `--ref-audio` needs; `weights_status` reports it as `ref_audio_ready`.
 
 ```bash
 pip install modal && modal token new
@@ -117,12 +123,14 @@ POST /submit_song  {token, model, tags, lyrics, instrumental, max_audio_length_m
                     repainting_start, repainting_end, src_audio_b64, src_audio_name,
                     ref_audio_b64, ref_audio_name, ref_strength, ref_tile,
                     vocal_language, inference_steps, thinking}
-                → {call_id} | {error}
+                → {call_id, seed} | {error}
 POST /poll_song    {token, call_id}
                 → {status: "pending"} | {status: "done", mp3_b64} | {status: "error", error}
 ```
 
-`tags` is the caption (prose for ACE-Step and Music 3, comma tags for HeartMuLa). Fields a model doesn't use are ignored. `thinking` defaults to false, as on ACE-Step's own API server. A bad token gets HTTP 401. For Music 3, `lyrics` may be a tag-only sheet alongside `instrumental: true`.
+`tags` is the caption (prose for ACE-Step and Music 3, comma tags for HeartMuLa). Fields a model doesn't use are ignored. `thinking` defaults to false, as on ACE-Step's own API server. A bad token gets HTTP 401 and a body over 48MB gets 413; a Bearer header is checked before the body is read. When `seed` is omitted, the gateway picks one per call (ACE-Step, Music 3) and returns it with the `call_id`. `audio_cover_strength` defaults to 0.3 for `text2music` with a reference and 1.0 for source-audio tasks. For Music 3, `lyrics` may be a tag-only sheet alongside `instrumental: true`.
+
+**Call IDs aren't scoped to the gateway.** `/poll_song` looks up any Modal function call ID in the workspace the gateway runs in, so a token holder who learns another call's ID can read its return value. The gateway is stateless and doesn't track which IDs it issued. Deploy it in a dedicated Modal workspace holding only the music apps, and give the token only to callers you'd trust with those apps' outputs.
 
 ## Lyria (Gemini API)
 

@@ -36,7 +36,7 @@ BPM, key, and time signature have typed parameters: `--bpm 96 --key "E minor" --
 | `extract` | Isolate instrument tracks (stem-ish) | `--src-audio` |
 | `complete` | Add instruments to a partial mix (vocal → full band). **Not** time extension: output stays the source's length | `--src-audio` |
 
-`--strength` (audio_cover_strength, 0–1): 1.0 hugs the source structure; 0.7–0.9 is a faithful cover; **0.2–0.4 is vibe-only style transfer**.
+`--strength` (audio_cover_strength, 0–1): 1.0 hugs the source structure; 0.7–0.9 is a faithful cover; **0.2–0.4 is vibe-only style transfer**. Omit it and the CLI sends 0.3 for `text2music --ref-audio` and 1.0 for the source-audio tasks.
 
 What we found:
 

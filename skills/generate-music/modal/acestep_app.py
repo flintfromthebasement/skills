@@ -21,6 +21,9 @@ weights = modal.Volume.from_name("acestep-weights", create_if_missing=True)
 
 # Upstream ACE-Step 1.5 commit the image builds from.
 ACESTEP_REF = "ca1e85fe9430179831e6bc6be790c332190a3866"
+DIT_MODEL = "acestep-v15-turbo"
+# Ships inside the main model bundle (upstream DEFAULT_LM_MODEL).
+LM_MODEL = "acestep-5Hz-lm-1.7B"
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -42,13 +45,18 @@ image = (
 def download_weights():
     from pathlib import Path
 
-    from acestep.model_downloader import ensure_dit_model, ensure_main_model
+    from acestep.model_downloader import ensure_dit_model, ensure_lm_model, ensure_main_model
 
     checkpoints = Path(CKPT_DIR) / "checkpoints"
-    ok, msg = ensure_main_model(checkpoints)
-    print(f"main model: {ok} {msg}")
-    ok, msg = ensure_dit_model("acestep-v15-turbo", checkpoints)
-    print(f"dit model: {ok} {msg}")
+    for what, fetch in (
+        ("main model", lambda: ensure_main_model(checkpoints)),
+        ("dit model", lambda: ensure_dit_model(DIT_MODEL, checkpoints)),
+        ("lm model", lambda: ensure_lm_model(LM_MODEL, checkpoints)),
+    ):
+        ok, msg = fetch()
+        print(f"{what}: {ok} {msg}")
+        if not ok:
+            raise RuntimeError(f"{what} download failed: {msg}")
     weights.commit()
 
 
@@ -62,18 +70,20 @@ class AceStep:
         self.dit = AceStepHandler()
         msg, ok = self.dit.initialize_service(
             project_root=CKPT_DIR,
-            config_path="acestep-v15-turbo",
+            config_path=DIT_MODEL,
             device="cuda",
         )
         if not ok:
             raise RuntimeError(f"ACE-Step init failed: {msg}")
         self.llm = LLMHandler()
-        self.llm.initialize(
+        msg, ok = self.llm.initialize(
             checkpoint_dir=f"{CKPT_DIR}/checkpoints",
-            lm_model_path="acestep-5Hz-lm-0.6B",
+            lm_model_path=LM_MODEL,
             backend="pt",
             device="cuda",
         )
+        if not ok:
+            raise RuntimeError(f"ACE-Step LM init failed: {msg}")
         weights.commit()
 
     @modal.method()

@@ -28,8 +28,10 @@ weights = modal.Volume.from_name("minimax-music3-weights", create_if_missing=Tru
 DIFFUSERS_REF = "dafe3733fcfdbf3c48915fe77be3aef65b5d6a2d"
 HF_MODEL_ID = "MiniMaxAI/MiniMax-Music3"
 
-# Diffusers modular half only. Skip SGLang qwen_7B shards + *.pth (~40GB).
+# Diffusers modular half plus the DAV encoder for --ref-audio. Skip SGLang qwen_7B shards (~40GB).
+DAV_FILE = "dav.pth"
 ALLOW_PATTERNS = [
+    DAV_FILE,
     "modular_model_index.json",
     "config.json",
     "language_model/*",
@@ -242,7 +244,7 @@ def download_weights():
         stop_commit = True
 
     weights.commit()
-    missing = [r for r in REQUIRED if not (Path(path) / r).exists()]
+    missing = [r for r in (*REQUIRED, DAV_FILE) if not (Path(path) / r).exists()]
     total = sum(f.stat().st_size for f in Path(path).rglob("*") if f.is_file())
     print(f"weights ready under {path} ({total / 1e9:.2f} GB)")
     if missing:
@@ -266,9 +268,11 @@ def weights_status():
             comps[name] = 0
     index = root / "modular_model_index.json"
     comps["modular_model_index.json"] = index.stat().st_size if index.is_file() else 0
+    dav = root / DAV_FILE
+    comps[DAV_FILE] = dav.stat().st_size if dav.is_file() else 0
     total = sum(f.stat().st_size for f in root.rglob("*") if f.is_file())
     ready = all(comps[c] > 0 for c in REQUIRED) and comps["modular_model_index.json"] > 0
-    return {"ready": ready, "bytes": total, "components": comps}
+    return {"ready": ready, "ref_audio_ready": comps[DAV_FILE] > 0, "bytes": total, "components": comps}
 
 
 @app.cls(
@@ -312,10 +316,9 @@ class MiniMaxMusic3:
         import soundfile as sf
 
         if self.dav_encoder is None:
-            from huggingface_hub import hf_hub_download
-
-            dav_path = hf_hub_download(HF_MODEL_ID, "dav.pth", local_dir=f"{CKPT_DIR}/MiniMax-Music3")
-            weights.commit()
+            dav_path = f"{CKPT_DIR}/MiniMax-Music3/{DAV_FILE}"
+            if not pathlib.Path(dav_path).is_file():
+                raise RuntimeError(f"{DAV_FILE} missing from the weights volume. Run: modal run ...::download_weights")
             sys.path.insert(0, "/root")
             from dav_encoder import load_dav_encoder
 
@@ -433,6 +436,8 @@ def main(
     status = weights_status.remote()
     if not status.get("ready"):
         raise SystemExit(f"Weights not ready: {status}. Run download_weights first.")
+    if ref_audio and not status.get("ref_audio_ready"):
+        raise SystemExit(f"{DAV_FILE} missing for --ref-audio. Run download_weights again.")
 
     text = lyrics
     if lyrics_file:

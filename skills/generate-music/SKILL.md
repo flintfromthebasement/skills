@@ -71,14 +71,14 @@ Details, prompting per model, and the reference-audio recipes: [`references/mode
 --lyrics / --lyrics-file        section tags on their own lines
 --instrumental                  no vocals
 --seconds N                     duration cap (model default if omitted)
---seed N                        reproducible takes
+--seed N                        reproducible takes (omitted: a random seed, logged so you can repeat it)
 --out path.mp3                  default $MUSICGEN_OUT_DIR (./music-output)/<model>-<slug>-<ts>.mp3
 
 ACE-Step only:
 --task text2music|cover|repaint|lego|extract|complete
 --src-audio FILE                source track for cover / repaint / lego / extract / complete
 --ref-audio FILE                style reference (also Music 3 sound transfer on Modal/gateway)
---strength 0-1                  audio_cover_strength (0.2 = loose style transfer; 1.0 = hug the source)
+--strength 0-1                  audio_cover_strength (0.2 = loose style transfer; 1.0 = hug the source; default 0.3 with --ref-audio, 1.0 for source tasks)
 --repaint-start S --repaint-end S
 --bpm --key --time-signature --language --steps --thinking --dit-model
 
