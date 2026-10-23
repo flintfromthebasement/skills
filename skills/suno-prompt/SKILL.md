@@ -18,6 +18,7 @@ Works in three environments:
 **Related skills**
 
 - [`write-lyrics`](../write-lyrics/) — full phased lyric engine + cliché filter. Use it when both skills are loaded; this skill owns context, style prompt, and packaging.
+- [`generate-music`](../generate-music/) — render the song with ACE-Step, MiniMax Music 3, HeartMuLa, or Lyria instead of (or before) pasting into Suno; its `--model suno` handoff writes this skill's output to paste-ready files.
 - [`audio-analysis`](../audio-analysis/) — extract a style prompt *from a reference audio file* (`--mode suno`). Different job: listening, not writing.
 
 ---

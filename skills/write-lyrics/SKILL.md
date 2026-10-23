@@ -7,7 +7,7 @@ description: "Phased lyric-writing engine — stream-of-consciousness draft, rut
 
 Write lyrics through a deliberate phased process, not a single generation pass. One-shot lyrics converge on the same generic song every time; the phases force divergence — raw material first, then ruthless selection, then structure, then craft. Run them in order. Don't skip ahead to a polished draft.
 
-This skill is the **lyric engine**. Pair it with [`suno-prompt`](../suno-prompt/) when you also need a Suno style prompt and settings. When invoked alone, do the context gate below first, then run the phases.
+This skill is the **lyric engine**. Pair it with [`suno-prompt`](../suno-prompt/) when you also need a Suno style prompt and settings. To render the finished lyrics as audio with ACE-Step, MiniMax Music 3, HeartMuLa, or Lyria, hand them to [`generate-music`](../generate-music/). When invoked alone, do the context gate below first, then run the phases.
 
 Works in three environments:
 
