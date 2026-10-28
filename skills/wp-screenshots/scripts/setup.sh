@@ -4,9 +4,10 @@
 # What it does:
 #   1. Verifies node + npm are available.
 #   2. Verifies a Chromium/Chrome binary is reachable (or warns).
-#   3. Runs `npm install` if node_modules is missing.
-#   4. Runs a font advisory check (Inter alias for Mac-faithful admin shots).
-#   5. Writes an install receipt so re-runs are fast no-ops.
+#   3. Runs `npm install` unless puppeteer-core and sharp already import.
+#   4. Fails (no receipt) if either still won't import afterwards.
+#   5. Runs a font advisory check (Inter alias for Mac-faithful admin shots).
+#   6. Writes an install receipt so re-runs are fast no-ops.
 #
 # Safe to re-run. Pass --force to reinstall, --yes for unattended.
 
@@ -32,9 +33,11 @@ done
 log()  { printf '[wp-screenshots] %s\n' "$*"; }
 warn() { printf '[wp-screenshots] WARN: %s\n' "$*" >&2; }
 die()  { printf '[wp-screenshots] ERROR: %s\n' "$*" >&2; exit 1; }
+# True if the named package imports from the skill dir (catches missing native binaries, not just missing folders).
+can_import() { (cd "$SKILL_DIR" && node -e "import('$1').then(() => process.exit(0)).catch(() => process.exit(1))") >/dev/null 2>&1; }
 
 # 1. Skip if already installed and node_modules still exists
-if [[ -f "$RECEIPT" && -d "$SKILL_DIR/node_modules" && $FORCE -eq 0 ]]; then
+if [[ -f "$RECEIPT" && $FORCE -eq 0 ]] && can_import puppeteer-core && can_import sharp; then
   log "already installed — receipt at $RECEIPT"
   log "re-run with --force to reinstall"
   exit 0
@@ -73,21 +76,19 @@ fi
 
 # 4. Install npm deps
 cd "$SKILL_DIR"
-if [[ -d node_modules && $FORCE -eq 0 ]]; then
-  log "node_modules present — skipping npm install"
+if [[ $FORCE -eq 0 ]] && can_import puppeteer-core && can_import sharp; then
+  log "deps import cleanly — skipping npm install"
 else
   log "running npm install..."
   npm install --no-audit --no-fund
 fi
 
-# 5. Smoke-check: file parses, and puppeteer-core resolves
+# 5. Smoke-check: file parses, and puppeteer-core + sharp resolve
 if ! node --check scripts/capture.mjs >/dev/null 2>&1; then
   warn "scripts/capture.mjs failed to parse"
 fi
-if ! node -e "import('puppeteer-core').then(() => process.exit(0)).catch(e => { console.error(e.message); process.exit(1); })" >/dev/null 2>&1; then
-  warn "puppeteer-core failed to import — deps may be incomplete"
-  warn "try: rm -rf node_modules && bash scripts/setup.sh --force"
-fi
+can_import puppeteer-core || die "puppeteer-core failed to import — try: rm -rf node_modules && bash scripts/setup.sh --force"
+can_import sharp || die "sharp failed to import (PNG optimization needs it) — try: rm -rf node_modules && bash scripts/setup.sh --force"
 
 # 6. Font advisory — Mac-faithful WordPress admin rendering on Linux
 if command -v fc-match >/dev/null 2>&1; then

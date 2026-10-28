@@ -29,9 +29,9 @@
  */
 
 import puppeteer from 'puppeteer-core';
-import { readFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, rmSync } from 'node:fs';
 import { parseArgs } from 'node:util';
-import { join, resolve, isAbsolute } from 'node:path';
+import { join, resolve, isAbsolute, dirname, basename } from 'node:path';
 
 const HIDE_NOTICES_CSS = `
   .notice, .updated, .update-nag, .error,
@@ -133,6 +133,16 @@ if (needsLogin && (!USER || !PASS)) {
 const onlySet = values.only ? new Set(values.only.split(',').map(s => s.trim())) : null;
 const shots = onlySet ? brief.shots.filter(s => onlySet.has(s.slug)) : brief.shots;
 
+const DEFAULT_OPTIMIZE = 'lossy';
+const OPTIMIZE_MODES = ['lossy', 'lossless', 'none'];
+const badOptimize = shots
+  .map(s => [s.slug, s.optimize ?? brief.optimize ?? DEFAULT_OPTIMIZE])
+  .filter(([, mode]) => !OPTIMIZE_MODES.includes(mode));
+if (badOptimize.length) {
+  for (const [slug, mode] of badOptimize) console.error(`FAIL: ${slug || '?'}: optimize must be one of ${OPTIMIZE_MODES.join(', ')} (got ${JSON.stringify(mode)})`);
+  process.exit(1);
+}
+
 const defaultOutDir = join(process.cwd(), 'screenshots', brief.topic);
 const rawOutDir = values['out-dir'] || brief.outDir || defaultOutDir;
 const outDir = isAbsolute(rawOutDir) ? rawOutDir : resolve(process.cwd(), rawOutDir);
@@ -151,6 +161,26 @@ console.log(`Output:  ${outDir}`);
 console.log(`Capturing ${shots.length} shot(s)\n`);
 
 const DEFAULT_DPR = 2;
+
+// Recompress a PNG in place: 'lossy' = 256-color palette (TinyPNG-style), 'lossless' = max zlib, 'none' = skip.
+// The full-size capture is kept at originals/<slug>.png whenever the file is rewritten.
+async function optimizePng(path, mode) {
+  const original = join(dirname(path), 'originals', basename(path));
+  rmSync(original, { force: true });
+  if (mode === 'none') return '';
+  const { default: sharp } = await import('sharp');
+  const raw = readFileSync(path);
+  let out = await sharp(raw).png({ compressionLevel: 9, effort: 10, adaptiveFiltering: true }).toBuffer();
+  if (mode === 'lossy') {
+    const lossy = await sharp(raw).png({ palette: true, quality: 90, effort: 10, compressionLevel: 9 }).toBuffer();
+    if (lossy.length < out.length) out = lossy;
+  }
+  if (out.length >= raw.length) return ' (already optimal)';
+  mkdirSync(dirname(original), { recursive: true });
+  writeFileSync(original, raw);
+  writeFileSync(path, out);
+  return ` (${mode} ${Math.round(raw.length / 1024)}KB -> ${Math.round(out.length / 1024)}KB)`;
+}
 
 async function login(page) {
   await page.goto(`${SITE}/wp-login.php`, { waitUntil: 'domcontentloaded' });
@@ -217,7 +247,13 @@ async function applyShot(page, spec) {
 
   const target = join(outDir, `${spec.slug}.png`);
   await page.screenshot({ path: target, type: 'png', fullPage: !!spec.fullPage });
-  return target;
+  let note;
+  try {
+    note = await optimizePng(target, spec.optimize ?? brief.optimize ?? DEFAULT_OPTIMIZE);
+  } catch (e) {
+    note = ` (optimize failed: ${e.message}; raw capture kept)`;
+  }
+  return { path: target, note };
 }
 
 async function main() {
@@ -262,8 +298,8 @@ async function main() {
     process.stdout.write(`  ${spec.slug.padEnd(40)} `);
     try {
       const page = spec.loggedOut || !authPage ? await getAnonPage() : authPage;
-      const path = await applyShot(page, spec);
-      console.log(`OK  -> ${path}`);
+      const { path, note } = await applyShot(page, spec);
+      console.log(`OK  -> ${path}${note}`);
       results.push({ slug: spec.slug, ok: true, path });
     } catch (e) {
       console.log(`FAIL: ${e.message}`);
