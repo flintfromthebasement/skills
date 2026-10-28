@@ -181,11 +181,13 @@ screenshots/<topic>/
 
 ## Optimization
 
-`capture.mjs` recompresses every PNG in place with `sharp`: a 256-color palette quantization at quality 90, the same technique TinyPNG uses. On real WordPress shots that's 64–86% smaller (a 1.7 MB front-end shot → 574 KB) with no visible difference. If the lossy result isn't smaller than a lossless max-zlib recompress, the lossless one is kept. The capture log prints before/after sizes per shot. Shots are ready for docs and blog posts as delivered; don't run them through TinyPNG again.
+`capture.mjs` recompresses every PNG in place with `sharp`: a 256-color palette quantization at quality 90, the same technique TinyPNG uses. On real WordPress shots that's 60–86% smaller (a 2.6 MB Memberlite front page → 988 KB) with no visible difference. If the lossy result isn't smaller than a lossless max-zlib recompress, the lossless one is kept. The capture log prints before/after sizes per shot. Shots are ready for docs and blog posts as delivered; don't run them through TinyPNG again.
 
 The untouched capture of every rewritten shot is kept at `originals/<slug>.png`, so if the compression looks too soft you can grab the original without a re-run. When you hand the folder off as a zip, keep the folder structure (`zip -r`, not `zip -j`, which collides the names).
 
 Use `"optimize": "lossless"` (per-shot or brief-level) when a shot exists to show fine detail: 1px borders, small type, subtle gradients, color swatches. Use `"none"` only when you want raw Chromium output.
+
+Any other `optimize` value fails the run before capture. If `sharp` throws on a shot (e.g. a very tall `fullPage` capture), the raw PNG is kept and the log notes it.
 
 ## Verifying a site before capture
 

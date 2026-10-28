@@ -32,9 +32,11 @@ done
 log()  { printf '[wp-screenshots] %s\n' "$*"; }
 warn() { printf '[wp-screenshots] WARN: %s\n' "$*" >&2; }
 die()  { printf '[wp-screenshots] ERROR: %s\n' "$*" >&2; exit 1; }
+# True if the named package imports from the skill dir (catches missing native binaries, not just missing folders).
+can_import() { (cd "$SKILL_DIR" && node -e "import('$1').then(() => process.exit(0)).catch(() => process.exit(1))") >/dev/null 2>&1; }
 
 # 1. Skip if already installed and node_modules still exists
-if [[ -f "$RECEIPT" && -d "$SKILL_DIR/node_modules/sharp" && $FORCE -eq 0 ]]; then
+if [[ -f "$RECEIPT" && $FORCE -eq 0 ]] && can_import puppeteer-core && can_import sharp; then
   log "already installed — receipt at $RECEIPT"
   log "re-run with --force to reinstall"
   exit 0
@@ -84,14 +86,8 @@ fi
 if ! node --check scripts/capture.mjs >/dev/null 2>&1; then
   warn "scripts/capture.mjs failed to parse"
 fi
-if ! node -e "import('puppeteer-core').then(() => process.exit(0)).catch(e => { console.error(e.message); process.exit(1); })" >/dev/null 2>&1; then
-  warn "puppeteer-core failed to import — deps may be incomplete"
-  warn "try: rm -rf node_modules && bash scripts/setup.sh --force"
-fi
-if ! node -e "import('sharp').then(() => process.exit(0)).catch(e => { console.error(e.message); process.exit(1); })" >/dev/null 2>&1; then
-  warn "sharp failed to import — PNG optimization will crash capture.mjs"
-  warn "try: rm -rf node_modules && bash scripts/setup.sh --force"
-fi
+can_import puppeteer-core || die "puppeteer-core failed to import — try: rm -rf node_modules && bash scripts/setup.sh --force"
+can_import sharp || die "sharp failed to import (PNG optimization needs it) — try: rm -rf node_modules && bash scripts/setup.sh --force"
 
 # 6. Font advisory — Mac-faithful WordPress admin rendering on Linux
 if command -v fc-match >/dev/null 2>&1; then
