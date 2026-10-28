@@ -4,9 +4,10 @@
 # What it does:
 #   1. Verifies node + npm are available.
 #   2. Verifies a Chromium/Chrome binary is reachable (or warns).
-#   3. Runs `npm install` if node_modules is missing.
-#   4. Runs a font advisory check (Inter alias for Mac-faithful admin shots).
-#   5. Writes an install receipt so re-runs are fast no-ops.
+#   3. Runs `npm install` unless puppeteer-core and sharp already import.
+#   4. Fails (no receipt) if either still won't import afterwards.
+#   5. Runs a font advisory check (Inter alias for Mac-faithful admin shots).
+#   6. Writes an install receipt so re-runs are fast no-ops.
 #
 # Safe to re-run. Pass --force to reinstall, --yes for unattended.
 
@@ -75,8 +76,8 @@ fi
 
 # 4. Install npm deps
 cd "$SKILL_DIR"
-if [[ -d node_modules/puppeteer-core && -d node_modules/sharp && $FORCE -eq 0 ]]; then
-  log "node_modules present — skipping npm install"
+if [[ $FORCE -eq 0 ]] && can_import puppeteer-core && can_import sharp; then
+  log "deps import cleanly — skipping npm install"
 else
   log "running npm install..."
   npm install --no-audit --no-fund
