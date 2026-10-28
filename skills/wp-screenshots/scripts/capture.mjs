@@ -29,9 +29,10 @@
  */
 
 import puppeteer from 'puppeteer-core';
-import { readFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
+import sharp from 'sharp';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, rmSync } from 'node:fs';
 import { parseArgs } from 'node:util';
-import { join, resolve, isAbsolute } from 'node:path';
+import { join, resolve, isAbsolute, dirname, basename } from 'node:path';
 
 const HIDE_NOTICES_CSS = `
   .notice, .updated, .update-nag, .error,
@@ -151,6 +152,26 @@ console.log(`Output:  ${outDir}`);
 console.log(`Capturing ${shots.length} shot(s)\n`);
 
 const DEFAULT_DPR = 2;
+const DEFAULT_OPTIMIZE = 'lossy';
+
+// Recompress a PNG in place: 'lossy' = 256-color palette (TinyPNG-style), 'lossless' = max zlib, 'none' = skip.
+// The full-size capture is kept at originals/<slug>.png whenever the file is rewritten.
+async function optimizePng(path, mode) {
+  const original = join(dirname(path), 'originals', basename(path));
+  rmSync(original, { force: true });
+  if (mode === 'none') return '';
+  const raw = readFileSync(path);
+  let out = await sharp(raw).png({ compressionLevel: 9, effort: 10, adaptiveFiltering: true }).toBuffer();
+  if (mode === 'lossy') {
+    const lossy = await sharp(raw).png({ palette: true, quality: 90, effort: 10, compressionLevel: 9 }).toBuffer();
+    if (lossy.length < out.length) out = lossy;
+  }
+  if (out.length >= raw.length) return ' (already optimal)';
+  mkdirSync(dirname(original), { recursive: true });
+  writeFileSync(original, raw);
+  writeFileSync(path, out);
+  return ` (${mode} ${Math.round(raw.length / 1024)}KB -> ${Math.round(out.length / 1024)}KB)`;
+}
 
 async function login(page) {
   await page.goto(`${SITE}/wp-login.php`, { waitUntil: 'domcontentloaded' });
@@ -217,7 +238,8 @@ async function applyShot(page, spec) {
 
   const target = join(outDir, `${spec.slug}.png`);
   await page.screenshot({ path: target, type: 'png', fullPage: !!spec.fullPage });
-  return target;
+  const note = await optimizePng(target, spec.optimize ?? brief.optimize ?? DEFAULT_OPTIMIZE);
+  return target + note;
 }
 
 async function main() {

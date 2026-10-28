@@ -34,7 +34,7 @@ warn() { printf '[wp-screenshots] WARN: %s\n' "$*" >&2; }
 die()  { printf '[wp-screenshots] ERROR: %s\n' "$*" >&2; exit 1; }
 
 # 1. Skip if already installed and node_modules still exists
-if [[ -f "$RECEIPT" && -d "$SKILL_DIR/node_modules" && $FORCE -eq 0 ]]; then
+if [[ -f "$RECEIPT" && -d "$SKILL_DIR/node_modules/sharp" && $FORCE -eq 0 ]]; then
   log "already installed — receipt at $RECEIPT"
   log "re-run with --force to reinstall"
   exit 0
@@ -73,19 +73,23 @@ fi
 
 # 4. Install npm deps
 cd "$SKILL_DIR"
-if [[ -d node_modules && $FORCE -eq 0 ]]; then
+if [[ -d node_modules/puppeteer-core && -d node_modules/sharp && $FORCE -eq 0 ]]; then
   log "node_modules present — skipping npm install"
 else
   log "running npm install..."
   npm install --no-audit --no-fund
 fi
 
-# 5. Smoke-check: file parses, and puppeteer-core resolves
+# 5. Smoke-check: file parses, and puppeteer-core + sharp resolve
 if ! node --check scripts/capture.mjs >/dev/null 2>&1; then
   warn "scripts/capture.mjs failed to parse"
 fi
 if ! node -e "import('puppeteer-core').then(() => process.exit(0)).catch(e => { console.error(e.message); process.exit(1); })" >/dev/null 2>&1; then
   warn "puppeteer-core failed to import — deps may be incomplete"
+  warn "try: rm -rf node_modules && bash scripts/setup.sh --force"
+fi
+if ! node -e "import('sharp').then(() => process.exit(0)).catch(e => { console.error(e.message); process.exit(1); })" >/dev/null 2>&1; then
+  warn "sharp failed to import — PNG optimization will crash capture.mjs"
   warn "try: rm -rf node_modules && bash scripts/setup.sh --force"
 fi
 
