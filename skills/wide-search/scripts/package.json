@@ -1,0 +1,9 @@
+{
+  "name": "wide-search",
+  "private": true,
+  "type": "module",
+  "description": "Only the opt-in claude engine needs this dependency; the default engines run on plain Node 18+.",
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "^0.133.0"
+  }
+}
