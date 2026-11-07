@@ -1,18 +1,18 @@
 ---
 name: read
-description: Fetch any web URL or YouTube video, cache the content, and return it at the requested depth (skim, read, deep). Default is deep (full content) — use it for any summary or review. --depth=read on anything longer than 5k (article or video) is promoted to deep so you never summarise from a head slice. skim is the only truncated mode. Plus lightweight RSS/Atom feed subscriptions. Model-agnostic — the skill never calls an LLM, the calling agent does the synthesis.
+description: Fetch any web URL or YouTube video, cache the content, and return it at the requested depth (skim, read, deep). YouTube gets a transcript (direct captions, then Firecrawl) plus an optional watch pass where a cheap classifier decides whether a video model should actually see and hear it (music, demos, tutorials, captionless videos) and Gemini writes a neutral audiovisual description. Bot-blocked or JS-only articles fall back to Firecrawl. Default depth is deep; skim is the only truncated mode. Plus lightweight RSS/Atom feed subscriptions. The calling agent does all synthesis.
 ---
 
 # Read
 
 A general-purpose reader. Two modes:
 
-1. **One-off URL read** — paste any web article or YouTube link, get back clean content scaled to a depth budget.
+1. **One-off URL read** — paste any web article or YouTube link, get back clean content scaled to a depth budget. YouTube videos can also be *watched*: see [Watching videos](#watching-videos).
 2. **Lightweight feed reader** — subscribe to RSS/Atom feeds, refresh to pull new items, then read individual items.
 
-The agent calling the skill does the analysis. The skill just delivers content.
+The agent calling the skill does the analysis. The skill just delivers content: text, transcripts, and (for videos worth it) a neutral description of what a video model saw and heard. It never writes a take or summary of its own.
 
-Inspired by Flint's `tap_read_url` flow, with the heavy aggregator UI stripped out.
+Ported from the Stranger Agents `read_url` tool and feeds watch pass, with the aggregator UI stripped out.
 
 ## When to Use
 
@@ -40,15 +40,18 @@ bash scripts/setup.sh
 
 Idempotent. Re-runs are no-ops. Pass `--force` to reinstall.
 
-The setup checks node + npm, installs node deps (Readability, JSDOM, rss-parser, js-yaml), and verifies python3 + `youtube-transcript-api` (required for YouTube reads). If anything is missing, the script prints the exact install line to fix it.
+The setup checks node + npm, installs node deps (Readability, JSDOM, rss-parser, js-yaml), checks python3 + `youtube-transcript-api`, and reports which optional keys are set. If anything is missing, the script prints the exact line to fix it.
 
 ### Prerequisites
 
 - **Node 18+** with `npm`
-- **Python 3** with `youtube-transcript-api` (only required for YouTube reads):
+- Recommended for YouTube: **Python 3** with `youtube-transcript-api` (the fast, free caption path):
   ```bash
   pip3 install youtube-transcript-api
   ```
+  Point `READ_PYTHON` at a venv interpreter if the package isn't in the system python.
+- Optional `FIRECRAWL_API_KEY`: fallback for bot-blocked / JS-only articles and for YouTube captions when the direct path fails or the box is IP-blocked.
+- Optional `GEMINI_API_KEY` (or `GOOGLE_AI_API_KEY`): enables the watch classifier and video watching. Without it the skill reads transcripts only and says so.
 - Optional: an **AutoMem** endpoint for read-history storage. Without it, memories fall back to a JSONL file.
 
 ## Usage
@@ -71,8 +74,15 @@ node scripts/read.mjs https://flint.fountain.network/blog/2026-02-20-the-respond
 # JSON output (easier to parse from a calling agent)
 node scripts/read.mjs https://flint.fountain.network/blog/2026-02-20-the-respond-gap-why-autonomous-agents-have-no-panic-button/ --json
 
-# YouTube — full transcript (long --depth=read promotes to deep)
+# YouTube — transcript, plus a watch when the classifier says the visuals/sound matter
 node scripts/read.mjs "https://www.youtube.com/watch?v=VIDEO_ID"
+
+# Tell the classifier why you're reading it (a question about how it looks/sounds leans toward watching)
+node scripts/read.mjs "https://youtu.be/VIDEO_ID" --context="user asked what the guitar tone is like"
+
+# Always watch / never watch
+node scripts/read.mjs "https://youtu.be/VIDEO_ID" --watch=force
+node scripts/read.mjs "https://youtu.be/VIDEO_ID" --watch=never
 ```
 
 ### Feed subscriptions
@@ -116,6 +126,53 @@ The `--depth` flag controls how much content is returned to the calling agent. T
 **Default is `deep`.** Use it for any summarise / review / "watch this" request. `--depth=read` on a body longer than 5k chars (article or YouTube) is auto-promoted to `deep` (`depth_requested` is recorded). `skim` is the only mode that still slices.
 
 If the body is `truncated: true` or carries a `[TRUNCATED]` marker, you have **not** seen the rest. Say the summary covers only that portion. Do not guess at the remainder or fill it in from web search.
+
+## Fetch Chain
+
+**Articles:** direct fetch + Readability. On 401/403/429/451, 5xx, network errors, extraction failure, or a page under 50 words (JS-rendered shell), the skill retries through Firecrawl `/v2/scrape` when `FIRECRAWL_API_KEY` is set. `via: direct|firecrawl` in the frontmatter says which path served it.
+
+**YouTube transcripts:**
+
+1. `youtube-transcript-api` direct (English first, then any language, manual captions before auto). Also gives the video length from the last caption.
+2. Firecrawl scrape of the watch page (stealth proxy, `waitFor`, uncached, up to 3 tries; YouTube intermittently serves it a 401 shell). Reads the `## Transcript` section and the video length from scrape metadata.
+3. Neither worked → no transcript. The watch pass can still cover the video.
+
+`youtu.be`, `/shorts/`, `/embed/`, `/live/`, and `watch?v=` URLs all normalise to one canonical URL, so they share a cache entry.
+
+## Watching Videos
+
+Ported from the Stranger Agents feeds watch pass. For every YouTube read, after the transcript:
+
+| Step | What happens |
+|------|--------------|
+| `--watch=never` | Transcript only. |
+| Saved watch exists | Returns it (`watch.status: cached`). No re-watch. |
+| No Gemini key | Skipped, reason says so. |
+| `--watch=force` | Watches. |
+| `--depth=skim` | Auto-watch skipped (triage). `--watch=force` still watches. |
+| Earlier auto verdict was skip, or the watch failed | Skipped with that reason; `--force` re-decides. |
+| Otherwise (`auto`) | **Classifier** (`gemini-3.1-flash-lite-preview`, temp 0) reads title, channel, transcript excerpt, and `--context`, returns watch yes/no + reason. Yes for music, performance, dance, visual tutorials, demos, art/animation, film breakdowns, gameplay, and captionless videos; no for talking heads, podcasts, lectures, commentary. If the classifier call fails, a title-regex heuristic decides (no transcript → always watch). |
+
+**The watch:** Gemini (`gemini-3.8-flash`, falling back to `gemini-3.6-flash` on overload or empty output) gets the YouTube URL directly, no download. Videos under 10 minutes use `STATIC` frame sampling; 10+ minutes use `AGENTIC` (the model seeks through the video itself). Length comes from caption timing or scrape metadata, else an estimate from transcript words at 150 wpm; unknown length starts `STATIC` and retries `AGENTIC` if it overflows the token limit. 429/5xx retries with backoff. Streams over SSE with a 10-minute ceiling; a typical 3–5 minute video takes 20–60 seconds.
+
+The model writes a **neutral** report (Summary, Timeline with timestamps, Editing and pacing, On-screen text, Sound and music, Verification details): what's there, no opinions. Your take is your job.
+
+Every outcome (watched, skipped by the classifier, failed) is saved to `<cache-dir>/yt-<video_id>.watch.md`, so the same video is never re-judged or re-watched. `--force` clears that for the run.
+
+### Coverage: never claim a watch that didn't happen
+
+YouTube reads carry `watched`, `watch` (`status`, `reason`, `decided_by`, `model`, `processing`, token `usage`), `transcript_available`, and a `coverage` line in the frontmatter. **Follow `coverage` literally.** If it says you did NOT watch, say you read the transcript; never say you watched or listened. If you watched, the body opens with `## Watch report` and the transcript follows under `## Transcript`.
+
+| Env | Default | Purpose |
+|-----|---------|---------|
+| `GEMINI_API_KEY` / `GOOGLE_AI_API_KEY` | (unset) | Classifier + watching |
+| `READ_VIDEO_MODEL` | `gemini-3.8-flash` | Watch model |
+| `READ_VIDEO_MODEL_FALLBACK` | `gemini-3.6-flash` | Fallback on overload/empty; `""` disables |
+| `READ_VIDEO_AGENTIC_MIN_SECONDS` | `600` | Length at which watching switches to `AGENTIC` |
+| `READ_WATCH_CLASSIFIER_MODEL` | `gemini-3.1-flash-lite-preview` | Watch/skip classifier |
+| `FIRECRAWL_API_KEY` | (unset) | Article + YouTube transcript fallback |
+| `FIRECRAWL_BASE_URL` | `https://api.firecrawl.dev` | Self-hosted Firecrawl |
+| `READ_PYTHON` | `python3` | Interpreter with `youtube-transcript-api` |
 
 ## Feed Discovery
 
@@ -197,6 +254,7 @@ If `AUTOMEM_ENDPOINT` is unset or unreachable, the read-history record is append
 | Path | Purpose |
 |------|---------|
 | `~/data/read-cache/<sha1-prefix>.md` | One file per cached URL — YAML frontmatter + full body |
+| `~/data/read-cache/yt-<video_id>.watch.md` | Saved watch outcome per video (status, model, reason) + watch report |
 | `~/data/feeds/subscriptions.json` | Array of subscription records |
 | `~/data/feeds/state/<slug>.json` | Per-feed last-poll timestamp |
 | `~/data/feeds/items/<slug>/<hash>.json` | Per-item metadata (title, url, published, summary) — used to dedupe `refresh` |
@@ -224,16 +282,16 @@ Common subscribe errors:
 - `NO_FEED_FOUND` — input URL didn't resolve to an RSS/Atom feed
 - `ALREADY_SUBSCRIBED` — slug or feed_url already in subscriptions
 
-YouTube transcript errors surface with their original error code: `TRANSCRIPTS_DISABLED`, `NO_TRANSCRIPT`, `VIDEO_UNAVAILABLE`. **If a transcript fails, stop.** Don't try yt-dlp, web scraping, or description chasing — auto-captions are the only path this skill supports.
+A YouTube read exits 2 with `NO_TRANSCRIPT` only when there is no transcript **and** no watch; the payload carries `transcript_errors` (what each provider said) and the watch reason. **Don't improvise past it**: no yt-dlp, no description chasing, no search-result summaries passed off as the video. The skill already tried direct captions, Firecrawl, and a watch. If the watch was skipped for lack of a key, say that; if the user explicitly wants it watched, `--watch=force`.
 
-PDFs are not supported in v1.
+PDFs are not supported.
 
 ## Recommended Workflow for the Calling Agent
 
 **One-off reads:**
 
-1. Run the skill at the right depth (default `deep` for one-offs and anything you will summarise; `skim` for batches).
-2. Read the body the skill returns. Check `truncated`, `body_chars_total`, and `cache` in the frontmatter.
+1. Run the skill at the right depth (default `deep` for one-offs and anything you will summarise; `skim` for batches). For a video, pass `--context` with what the user wants from it.
+2. Read the body the skill returns. Check `truncated`, `body_chars_total`, and `cache` in the frontmatter; for YouTube, read `coverage` and describe your access exactly as it says.
 3. Analyze — answer the actual question, summarize, pull quotes.
 4. Store useful takeaways via your memory tool with proper tags.
 5. If the body was truncated, re-run with `--depth=deep` before summarising. A truncated body is not the video.
@@ -247,11 +305,13 @@ PDFs are not supported in v1.
 
 ## Limitations
 
-- Text only. No image, chart, or video-frame analysis.
+- Articles are text only. No image or chart analysis.
+- Watching is YouTube-only (Gemini reads public YouTube URLs). Private, unlisted-with-restrictions, and age-gated videos can't be watched.
+- A watch report is one model's neutral description, not ground truth. It can miss or misread details; the Verification details section exists so you can sanity-check it.
 - No paywall bypass.
-- No PDF support (v1).
-- YouTube auto-captions have errors, especially with technical terms and proper nouns.
-- Brand-new YouTube videos (< 24 hours old) often don't have auto-captions yet.
+- No PDF support.
+- YouTube auto-captions have errors, especially with technical terms and proper nouns. Non-English videos come back in their own language (`transcript_language`).
+- Brand-new YouTube videos (< 24 hours old) often don't have auto-captions yet; the classifier treats no transcript as a reason to watch.
 - YouTube `@handle` URLs not yet supported for subscriptions — use `/channel/UC...` URLs.
 - Single-threaded. `refresh` polls feeds sequentially.
 - No background polling / cron — the calling agent decides when to refresh.
@@ -270,7 +330,9 @@ rm -rf "${READ_FEEDS_DIR:-$HOME/data/feeds}"
 - **One skill, two modes.** One-off reads and feed subscriptions share fetch, cache, and memory plumbing.
 - **Cache aggressively.** Re-reads and re-polls should not re-fetch unnecessarily.
 - **Depth is a content budget, not an analysis depth.** The skill gives raw content scaled to the budget; the calling agent does the thinking.
-- **Fail fast.** If discovery, transcript, or fetch fails, stop. No workarounds.
-- **Model-agnostic.** Whatever model is running the calling agent does the analysis.
+- **Fallbacks live in the skill, not the agent.** Direct → Firecrawl → watch, in that order. When the chain is exhausted, stop. No improvised workarounds.
+- **Watch only when it adds something.** A cheap classifier gates the expensive model; outcomes are cached so nothing is judged or watched twice.
+- **Never overclaim.** The `coverage` line is the contract between what the skill did and what the agent may say it did.
+- **The calling agent does the analysis.** The skill's only model calls are the watch classifier and a neutral audiovisual description.
 - **Memory is for read history, not synthesis.** The calling agent stores actual takeaways after analyzing.
 - **Feed reading composes with one-off reading.** `refresh` returns item URLs; the agent feeds them back into `read <url>` to get full content.

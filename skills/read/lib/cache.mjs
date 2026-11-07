@@ -71,3 +71,28 @@ export async function writeCache(url, { title, source, body, byline, kind, extra
   await writeFile(file, composed);
   return { file, frontmatter };
 }
+
+function watchCachePath(videoId) {
+  return path.join(getCacheDir(), `yt-${videoId}.watch.md`);
+}
+
+/** Saved watch outcome for a video: { status: ok|skipped|failed, ...frontmatter, description }. */
+export async function readWatchCache(videoId) {
+  const file = watchCachePath(videoId);
+  if (!existsSync(file)) return null;
+  try {
+    const { frontmatter, body } = parseFrontmatter(await readFile(file, 'utf-8'));
+    if (!frontmatter.status) return null;
+    return { ...frontmatter, description: body.trim() || null };
+  } catch {
+    return null;
+  }
+}
+
+export async function writeWatchCache(videoId, { description, ...record }) {
+  const file = watchCachePath(videoId);
+  // JSON round-trip drops undefined fields, which yaml.dump refuses.
+  const frontmatter = JSON.parse(JSON.stringify({ video_id: videoId, recorded: new Date().toISOString(), ...record }));
+  await writeFile(file, `---\n${yaml.dump(frontmatter)}---\n\n${(description || '').trim()}\n`);
+  return file;
+}

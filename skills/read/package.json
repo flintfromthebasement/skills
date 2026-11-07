@@ -1,9 +1,9 @@
 {
   "name": "skill-read",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "Read skill — fetch, cache, and serve URL content (web articles + YouTube videos) at requested depth, plus lightweight RSS/Atom feed subscriptions. Model-agnostic.",
+  "description": "Read skill — fetch, cache, and serve URL content (web articles + YouTube videos) at requested depth, with Firecrawl fallbacks, a classifier-gated Gemini watch pass for videos, and lightweight RSS/Atom feed subscriptions.",
   "bin": {
     "read": "./scripts/read.mjs"
   },
