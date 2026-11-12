@@ -1,6 +1,6 @@
 {
   "name": "wp-screenshots-skill",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Capture clean WordPress screenshots from a JSON brief.",

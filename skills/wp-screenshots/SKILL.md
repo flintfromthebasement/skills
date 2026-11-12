@@ -1,6 +1,6 @@
 ---
 name: wp-screenshots
-description: Capture clean, Mac-faithful WordPress admin + front-end screenshots from a JSON brief. Headless Chromium, login-aware, hides update bubbles and admin notices, defaults to 2× DPR, compresses every PNG for the web (keeping the full-size original), and writes a standalone HTML gallery alongside the PNGs. Works against any WordPress site you have credentials for.
+description: Capture clean, Mac-faithful WordPress admin + front-end screenshots from a JSON brief. Headless Chromium, login-aware, hides update bubbles and admin notices, can switch off plugins that don't belong in the shot (via WP-CLI), defaults to 2× DPR, compresses every PNG for the web (keeping the full-size original), and writes a standalone HTML gallery alongside the PNGs. Works against any WordPress site you have credentials for.
 ---
 
 # wp-screenshots
@@ -16,6 +16,7 @@ This skill is intentionally generic — it works on any WordPress site (your own
 Taking marketing-quality WP screenshots by hand is fiddly:
 
 - Update bubbles, plugin nag notices, and PMPro/Yoast banners ruin every shot.
+- Other active plugins add their own settings, panels, and menus to the screen you're shooting, so a shot of one feature also shows unrelated ones.
 - Login state matters — half your shots want a logged-in admin, half want a fresh anonymous visitor.
 - The Customizer is async; you need to wait long enough for panels to render.
 - Filenames and viewport sizes have to be consistent across a batch.
@@ -105,6 +106,8 @@ A brief is JSON with a top-level config and an array of `shots`:
 | `outDir` | no | Output folder (relative paths resolve against cwd). Default: `./screenshots/<topic>/`. |
 | `dpr` | no | `deviceScaleFactor` for every shot. Default 2 (retina). Per-shot `dpr` overrides this. |
 | `optimize` | no | `lossy` (default), `lossless`, or `none` for every shot. Per-shot `optimize` overrides this. See [Optimization](#optimization). |
+| `wp` | only with `plugins` | WP-CLI command prefix for the site, e.g. `wp --path=/srv/www/site` or `bash /path/to/scripts/local-wp.sh mysite`. Overridden by `--wp`. |
+| `plugins` | no | Plugin slugs (the `wp plugin list` names) that should be the **only** active plugins while each shot is captured. See [Showing only what the shot is about](#showing-only-what-the-shot-is-about). |
 | `shots` | yes | Array of shot specs. |
 
 ### Shot fields
@@ -126,6 +129,7 @@ A brief is JSON with a top-level config and an array of `shots`:
 | `evaluateBefore` | no | JS string run in the page before capture (open an inserter, dismiss a modal, etc.). Use sparingly — flaky `evaluateBefore` is the #1 cause of bad shots. |
 | `fullPage` | no | Capture the full scrollable page. Default false. |
 | `section` | no | Free-form group tag for the gallery. |
+| `plugins` | no | Overrides the brief's `plugins` for this shot. `false` captures with the site's own active plugins. |
 
 ## Translation tips
 
@@ -153,6 +157,8 @@ The harness:
 - Injects the notice-hiding CSS for admin shots when `hideNotices` is true.
 - Sets viewport + DPR per shot.
 - Compresses each PNG right after capture and keeps the untouched capture in `originals/`.
+- Switches plugins per shot when `plugins` is set, and restores the site's own plugins at the end.
+- Accepts "leave this page?" prompts, so an editor shot with unsaved changes doesn't block the next shot.
 - Reports `OK` or `FAIL: <reason>` per shot.
 
 Re-running overwrites existing PNGs with the same slug (idempotent).
@@ -165,7 +171,36 @@ Re-running overwrites existing PNGs with the same slug (idempotent).
 - `--pass-env <NAME>` — env var to read password from
 - `--out-dir <dir>` — override output folder
 - `--only slug1,slug2` — capture just these slugs
+- `--wp <command>` — WP-CLI command prefix (overrides `brief.wp`)
 - `--no-login` — skip login (briefs where every shot is `loggedOut: true`)
+
+## Showing only what the shot is about
+
+A screenshot of one plugin's settings shouldn't show another plugin's. On a membership site, the Edit Level screen for the Email Confirmation Add On also shows Pay by Check's settings if Pay by Check is active, and readers assume everything in the shot belongs to the feature being documented.
+
+Set `plugins` to the plugins that belong in the shot, and give the harness WP-CLI access with `wp`:
+
+```json
+{
+  "wp": "bash ~/path/to/wp-screenshots/scripts/local-wp.sh my-local-site",
+  "plugins": ["paid-memberships-pro", "pmpro-update-manager", "pmpro-email-confirmation"],
+  "shots": [
+    { "slug": "01-level-settings", "url": "/wp-admin/admin.php?page=pmpro-membershiplevels&edit=1" },
+    { "slug": "02-courses", "url": "/wp-admin/edit.php?post_type=pmpro_course",
+      "plugins": ["paid-memberships-pro", "pmpro-update-manager", "pmpro-courses"] },
+    { "slug": "03-as-is", "url": "/", "loggedOut": true, "plugins": false }
+  ]
+}
+```
+
+- Before each shot, every active plugin not in the list is deactivated and any listed plugin that's inactive is activated. Consecutive shots with the same list switch nothing.
+- When the run ends (including on an error or Ctrl-C), the site's original active plugins are restored. The original list is saved under `~/.config/wp-screenshots/` first, so if a run is killed outright, the next run against the same `wp` command restores the site before it does anything else.
+- Before capture, the harness prints the active plugins and any pending plugin updates, and fails if a listed plugin isn't installed.
+- List any plugin the feature depends on. For PMPro sites that's `paid-memberships-pro` plus `pmpro-update-manager` (without it, core shows an install notice on every admin screen).
+- Must-use plugins and network-activated plugins aren't switched.
+- Only use this on a local or staging site: deactivating plugins changes the live site for everyone while the run is going.
+
+`scripts/local-wp.sh` runs WP-CLI against a running [Local](https://localwp.com) site on macOS by site name. On any other host, use the site's own `wp` command (`wp --path=...`, `ssh host wp ...`, `docker compose exec wordpress wp ...`).
 
 ## Output
 
@@ -230,6 +265,8 @@ If a shot is unfixable in two iterations, drop it from the brief and note the ga
 - **Don't bake passwords into briefs** — use `auth.passEnv` and pass the secret via env var. Briefs are commit-safe; passwords are not.
 - **Don't commit `node_modules` or screenshot output** — `.gitignore` them in your project.
 - **Don't ship shots with notices, update bubbles, or PII** — verify each one.
+- **Don't ship shots with unrelated plugins' settings** — set `plugins` so the shot shows only the feature it documents.
+- **Don't use `plugins` on a production site** — it deactivates plugins for every visitor while the run is going.
 
 ## Uninstall
 

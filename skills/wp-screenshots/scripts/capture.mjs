@@ -26,9 +26,15 @@
  *   }
  *
  * See briefs/example.json for the full shot schema.
+ *
+ * Plugin isolation (optional): with a WP-CLI prefix in "wp" and a list of
+ * plugin slugs in "plugins" (brief-level or per shot), only those plugins are
+ * active while a shot is captured. The site's original active plugins are
+ * restored when the run ends, and on the next run if one crashes.
  */
 
 import puppeteer from 'puppeteer-core';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, rmSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { join, resolve, isAbsolute, dirname, basename } from 'node:path';
@@ -81,6 +87,7 @@ const { values } = parseArgs({
     'pass-env': { type: 'string' },
     'out-dir':  { type: 'string' },
     only:     { type: 'string' },
+    wp:       { type: 'string' },
     'no-login': { type: 'boolean' },
     help:     { type: 'boolean' },
   },
@@ -97,6 +104,7 @@ Options:
   --pass-env <NAME>     Read password from this env var
   --out-dir <dir>       Output directory (default: ./screenshots/<topic>/)
   --only <slugs>        Comma-separated list of slugs to capture
+  --wp <command>        WP-CLI command prefix for the site (overrides brief.wp)
   --no-login            Skip login (anonymous-only briefs)
   --help                Show this help
 `);
@@ -143,6 +151,23 @@ if (badOptimize.length) {
   process.exit(1);
 }
 
+const WP = values.wp || brief.wp || '';
+const SLUG_RE = /^[A-Za-z0-9._-]+$/;
+// A shot's "plugins": false captures with the site's own active plugins.
+const pluginsFor = spec => (spec.plugins === false ? null : spec.plugins ?? brief.plugins);
+const pluginSets = shots.map(pluginsFor).filter(Boolean);
+if (pluginSets.length) {
+  if (!WP) {
+    console.error('FAIL: "plugins" is set but there is no WP-CLI command. Set brief.wp or pass --wp.');
+    process.exit(1);
+  }
+  const bad = pluginSets.flat().filter(p => typeof p !== 'string' || !SLUG_RE.test(p));
+  if (bad.length || pluginSets.some(p => !Array.isArray(p))) {
+    console.error(`FAIL: "plugins" must be arrays of plugin slugs (got ${JSON.stringify(bad.length ? bad : pluginSets)})`);
+    process.exit(1);
+  }
+}
+
 const defaultOutDir = join(process.cwd(), 'screenshots', brief.topic);
 const rawOutDir = values['out-dir'] || brief.outDir || defaultOutDir;
 const outDir = isAbsolute(rawOutDir) ? rawOutDir : resolve(process.cwd(), rawOutDir);
@@ -180,6 +205,82 @@ async function optimizePng(path, mode) {
   writeFileSync(original, raw);
   writeFileSync(path, out);
   return ` (${mode} ${Math.round(raw.length / 1024)}KB -> ${Math.round(out.length / 1024)}KB)`;
+}
+
+// ---- Plugin isolation (brief.wp + plugins) ----
+
+function wp(args) {
+  return execFileSync('/bin/bash', ['-c', `${WP} ${args}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+}
+
+function pluginNames(filter = '') {
+  return wp(`plugin list ${filter} --field=name`).split('\n').map(s => s.trim()).filter(s => SLUG_RE.test(s));
+}
+
+// The site's original active plugins, saved before the first switch. Keyed by the WP-CLI command
+// so a crashed run is restored by the next run against the same site, whatever its output folder.
+const RESTORE_FILE = join(process.env.HOME || '.', '.config', 'wp-screenshots',
+  `restore-${Buffer.from(WP).toString('base64url').slice(0, 60)}.json`);
+let originalActive = null;
+let currentSet = null;
+
+function setActivePlugins(target) {
+  const active = pluginNames('--status=active');
+  const off = active.filter(p => !target.includes(p));
+  const on = target.filter(p => !active.includes(p));
+  if (off.length) wp(`plugin deactivate ${off.join(' ')}`);
+  if (on.length) wp(`plugin activate ${on.join(' ')}`);
+  return { off, on };
+}
+
+function restorePlugins() {
+  if (!existsSync(RESTORE_FILE)) return;
+  const { active } = JSON.parse(readFileSync(RESTORE_FILE, 'utf8'));
+  const { off, on } = setActivePlugins(active);
+  rmSync(RESTORE_FILE, { force: true });
+  console.log(`Restored the site's plugins (${on.length} back on, ${off.length} back off).`);
+}
+
+function usePlugins(target) {
+  if (!target) {
+    if (originalActive && currentSet) {
+      setActivePlugins(originalActive);
+      currentSet = null;
+    }
+    return;
+  }
+  const key = [...target].sort().join(' ');
+  if (key === currentSet) return;
+  if (!originalActive) {
+    originalActive = pluginNames('--status=active');
+    mkdirSync(dirname(RESTORE_FILE), { recursive: true });
+    writeFileSync(RESTORE_FILE, JSON.stringify({ wp: WP, active: originalActive }));
+  }
+  const { off } = setActivePlugins(target);
+  currentSet = key;
+  console.log(`\n  plugins: only ${target.join(', ') || '(none)'} active${off.length ? ` (${off.length} switched off)` : ''}`);
+}
+
+// Print what else could end up in the shots: active plugins outside the brief's list, and
+// pending updates (update bubbles are hidden by CSS, but the real fix is a site without them).
+function preflight() {
+  const installed = pluginNames();
+  const missing = [...new Set(pluginSets.flat())].filter(p => !installed.includes(p));
+  if (missing.length) {
+    console.error(`FAIL: not installed on the site: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+  const allowed = new Set(pluginSets.flat());
+  const active = pluginNames('--status=active');
+  console.log(`Active plugins: ${active.join(', ') || 'none'}`);
+  const extra = active.filter(p => !allowed.has(p));
+  if (extra.length && shots.some(s => !pluginsFor(s))) {
+    console.log(`  ! shots without "plugins" will show these too: ${extra.join(', ')}`);
+  }
+  let updates = [];
+  try { updates = pluginNames('--update=available'); } catch {}
+  if (updates.length) console.log(`  ! plugins with updates pending: ${updates.join(', ')}`);
+  console.log('');
 }
 
 async function login(page) {
@@ -256,7 +357,37 @@ async function applyShot(page, spec) {
   return { path: target, note };
 }
 
+// Accept "leave this page?" prompts (an editor shot with unsaved changes would otherwise
+// block the next shot's navigation); dismiss everything else.
+function handleDialog(d) {
+  (d.type() === 'beforeunload' ? d.accept() : d.dismiss()).catch(() => {});
+}
+
 async function main() {
+  if (WP) {
+    try {
+      restorePlugins();
+      if (pluginSets.length) preflight();
+    } catch (e) {
+      console.error(`FAIL: WP-CLI command failed: ${(e.stderr || e.message || '').toString().trim().split('\n').pop()}`);
+      process.exit(1);
+    }
+  }
+  if (pluginSets.length) {
+    for (const sig of ['SIGINT', 'SIGTERM']) {
+      process.on(sig, () => { try { restorePlugins(); } finally { process.exit(130); } });
+    }
+  }
+  let code = 2;
+  try {
+    code = await captureAll();
+  } finally {
+    if (pluginSets.length) restorePlugins();
+  }
+  process.exit(code);
+}
+
+async function captureAll() {
   const browser = await puppeteer.launch({
     executablePath: chromium,
     headless: true,
@@ -267,14 +398,14 @@ async function main() {
   let authPage = null;
   if (needsLogin) {
     authPage = await browser.newPage();
-    authPage.on('dialog', d => d.dismiss().catch(() => {}));
+    authPage.on('dialog', handleDialog);
     console.log('Logging in...');
     try {
       await login(authPage);
     } catch (e) {
       console.error(`FAIL: ${e.message}`);
       await browser.close();
-      process.exit(1);
+      return 1;
     }
   }
 
@@ -284,7 +415,7 @@ async function main() {
     if (anonPage) return anonPage;
     anonContext = await browser.createBrowserContext();
     anonPage = await anonContext.newPage();
-    anonPage.on('dialog', d => d.dismiss().catch(() => {}));
+    anonPage.on('dialog', handleDialog);
     return anonPage;
   }
 
@@ -293,6 +424,14 @@ async function main() {
     if (!spec.slug || !spec.url) {
       console.log(`SKIP: missing slug or url`);
       results.push({ slug: spec.slug || '?', ok: false, error: 'missing slug or url' });
+      continue;
+    }
+    try {
+      if (pluginSets.length) usePlugins(pluginsFor(spec));
+    } catch (e) {
+      const msg = `plugin switch failed: ${(e.stderr || e.message || '').toString().trim().split('\n').pop()}`;
+      console.log(`  ${spec.slug.padEnd(40)} FAIL: ${msg}`);
+      results.push({ slug: spec.slug, ok: false, error: msg });
       continue;
     }
     process.stdout.write(`  ${spec.slug.padEnd(40)} `);
@@ -315,8 +454,9 @@ async function main() {
   if (fail > 0) {
     console.log('Failed:');
     for (const r of results.filter(r => !r.ok)) console.log(`  ${r.slug}: ${r.error}`);
-    process.exit(1);
+    return 1;
   }
+  return 0;
 }
 
 main().catch(e => { console.error('FAIL:', e); process.exit(2); });
